@@ -6,12 +6,8 @@
     <Project Path="src/MLNet.ImageGeneration.OnnxGenAI/MLNet.ImageGeneration.OnnxGenAI.csproj" />
   </Folder>
   <Folder Name="/tests/">
-    <Project Path="tests/MLNet.Image.Tokenizers.Tests/MLNet.Image.Tokenizers.Tests.csproj" />
-  </Folder>
-  <Folder Name="/tests/">
     <Project Path="tests/MLNet.Image.Core.Tests/MLNet.Image.Core.Tests.csproj" />
-  </Folder>
-  <Folder Name="/tests/">
+    <Project Path="tests/MLNet.Image.Tokenizers.Tests/MLNet.Image.Tokenizers.Tests.csproj" />
     <Project Path="tests/MLNet.ImageInference.Onnx.Tests/MLNet.ImageInference.Onnx.Tests.csproj" />
   </Folder>
   <Folder Name="/samples/">
