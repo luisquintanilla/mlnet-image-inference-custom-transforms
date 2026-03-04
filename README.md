@@ -149,17 +149,17 @@ dotnet build MLNet.Image.slnx
 
 ## Testing
 
-**107 tests** across three test projects — all passing.
+**123 tests** across three test projects — all passing.
 
 | Test Project | Tests | Description |
 |---|---|---|
 | Core | 37 | Image preprocessing, conversions, result types |
 | Tokenizers | 14 | CLIP tokenizer encoding/decoding |
-| Inference | 56 | End-to-end ONNX inference across all 5 tasks |
+| Inference | 72 | End-to-end ONNX inference across 8 models, all 5 tasks |
 
 ### Tested Models
 
-All five supported tasks are validated against real ONNX models:
+All five supported tasks are validated against 8 real ONNX models:
 
 | Model | Task | Notes |
 |---|---|---|
@@ -168,6 +168,9 @@ All five supported tasks are validated against real ONNX models:
 | YOLOv8n | Object Detection | Bounding box NMS post-processing |
 | SegFormer-b0 | Segmentation | Dynamic shape handling (bug found & fixed in Phase 4) |
 | CLIP ViT-B/32 | Embeddings / Zero-Shot | Image+text embedding, cosine similarity |
+| DINOv2 ViT-S/14 | Embeddings | 384-dim, DINOv2 preset, self-supervised |
+| ResNet-50 v1.7 | Classification | 1000 ImageNet classes, dynamic batch |
+| DeepLabV3-ResNet50 | Segmentation | 21 Pascal VOC classes, 520×520 |
 
 ## Related Projects
 

@@ -251,6 +251,61 @@ If a model uses standard ImageNet preprocessing, you can skip reading the JSON a
 | Detection | YOLOv8n | `ultralytics/yolov8n` | `YOLOv8` | 80 COCO classes, fast |
 | Segmentation | SegFormer-B0 | `nvidia/segformer-b0-finetuned-ade-512-512` | `SegFormer` | 150 ADE20K classes |
 | Zero-Shot | CLIP ViT-B/32 | `openai/clip-vit-base-patch32` | `CLIP` | Needs both vision + text encoders |
+| Embeddings | DINOv2 ViT-S/14 | `facebook/dinov2-small` | `DINOv2` | 384-dim, self-supervised, ~85MB |
+| Classification | ResNet-50 v1.7 | `microsoft/resnet-50` | `ImageNet` | 1000 classes, dynamic batch, ~100MB |
+| Segmentation | DeepLabV3-ResNet50 | `pytorch/deeplabv3-resnet50` | Custom | 21 Pascal VOC classes, 520×520 input, ~160MB |
+
+### DINOv2 ViT-S/14
+
+```
+models/dinov2/
+├── model.onnx                  ← DINOv2 small vision transformer
+├── config.json                 ← hidden_size = 384
+└── preprocessor_config.json    ← DINOv2-specific preprocessing
+```
+
+| Property | Value |
+|---|---|
+| Input name | `pixel_values` |
+| Input shape | `[1, 3, 224, 224]` |
+| Output name | `last_hidden_state` |
+| Output shape | `[1, 257, 384]` |
+| Embedding dim | 384 |
+| Preset | `PreprocessorConfig.DINOv2` |
+
+### ResNet-50 v1.7
+
+```
+models/resnet50/
+├── model.onnx                  ← ResNet-50 ONNX model
+├── config.json                 ← id2label mapping for 1000 ImageNet classes
+└── preprocessor_config.json    ← ImageNet preprocessing
+```
+
+| Property | Value |
+|---|---|
+| Input name | `pixel_values` |
+| Input shape | `[batch, 3, 224, 224]` (dynamic batch) |
+| Output name | `logits` |
+| Output shape | `[batch, 1000]` |
+| Preset | `PreprocessorConfig.ImageNet` |
+
+### DeepLabV3-ResNet50
+
+```
+models/deeplabv3/
+├── model.onnx                  ← DeepLabV3 segmentation model
+└── preprocessor_config.json    ← custom preprocessing (520×520)
+```
+
+| Property | Value |
+|---|---|
+| Input name | `input` |
+| Input shape | `[1, 3, 520, 520]` |
+| Output name | `out` |
+| Output shape | `[1, 21, 520, 520]` |
+| Classes | 21 (Pascal VOC) |
+| Preset | Custom (mean/std same as ImageNet, size 520×520) |
 
 ---
 
