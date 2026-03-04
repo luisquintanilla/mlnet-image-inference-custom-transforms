@@ -20,6 +20,13 @@
 
   <ItemGroup>
     <Content Include="..\..\models\squeezenet\**" CopyToOutputDirectory="PreserveNewest" LinkBase="models\squeezenet" />
+    <Content Include="..\..\models\mobilenet\**" CopyToOutputDirectory="PreserveNewest" LinkBase="models\mobilenet" />
+    <Content Include="..\..\models\yolov8\**" CopyToOutputDirectory="PreserveNewest" LinkBase="models\yolov8" />
+    <Content Include="..\..\models\segformer\**" CopyToOutputDirectory="PreserveNewest" LinkBase="models\segformer" />
+    <Content Include="..\..\models\clip\vision_model.onnx" CopyToOutputDirectory="PreserveNewest" LinkBase="models\clip" />
+    <Content Include="..\..\models\clip\text_model.onnx" CopyToOutputDirectory="PreserveNewest" LinkBase="models\clip" />
+    <Content Include="..\..\models\clip\vocab.json" CopyToOutputDirectory="PreserveNewest" LinkBase="models\clip" />
+    <Content Include="..\..\models\clip\merges.txt" CopyToOutputDirectory="PreserveNewest" LinkBase="models\clip" />
   </ItemGroup>
 
 </Project>
