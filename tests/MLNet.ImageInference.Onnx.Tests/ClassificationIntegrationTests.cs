@@ -130,13 +130,11 @@ public class ClassificationIntegrationTests : IDisposable
         var transformer = new OnnxImageClassificationTransformer(options);
         _disposables.Add(transformer);
 
-        var mlContext = new MLContext();
         var image = CreateTestImage(224, 224);
         _disposables.Add(image);
 
-        var data = mlContext.Data.LoadFromEnumerable(new[] { new ImageInput { Image = image } });
-
-        var result = transformer.Transform(data);
+        var sourceDataView = new SingleImageDataView(image);
+        var result = transformer.Transform(sourceDataView);
 
         // Verify schema has output columns
         Assert.NotNull(result.Schema.GetColumnOrNull("PredictedLabel"));
@@ -175,10 +173,52 @@ public class ClassificationIntegrationTests : IDisposable
         }
         return MLImage.CreateFromPixels(width, height, MLPixelFormat.Rgba32, pixels);
     }
-}
 
-public class ImageInput
-{
-    [ImageType(224, 224)]
-    public MLImage Image { get; set; } = null!;
+    /// <summary>
+    /// Minimal IDataView that serves a single MLImage row for testing the Transform pipeline.
+    /// </summary>
+    private sealed class SingleImageDataView : IDataView
+    {
+        private readonly MLImage _image;
+        private readonly DataViewSchema _schema;
+
+        public SingleImageDataView(MLImage image)
+        {
+            _image = image;
+            var builder = new DataViewSchema.Builder();
+            builder.AddColumn("Image", NumberDataViewType.Single); // Type is not checked; cursor serves MLImage directly
+            _schema = builder.ToSchema();
+        }
+
+        public DataViewSchema Schema => _schema;
+        public bool CanShuffle => false;
+        public long? GetRowCount() => 1;
+
+        public DataViewRowCursor GetRowCursor(IEnumerable<DataViewSchema.Column> columnsNeeded, Random? rand = null)
+            => new SingleImageCursor(this);
+
+        public DataViewRowCursor[] GetRowCursorSet(IEnumerable<DataViewSchema.Column> columnsNeeded, int n, Random? rand = null)
+            => [GetRowCursor(columnsNeeded, rand)];
+
+        private sealed class SingleImageCursor : DataViewRowCursor
+        {
+            private readonly SingleImageDataView _parent;
+            private long _position = -1;
+
+            public SingleImageCursor(SingleImageDataView parent) => _parent = parent;
+            public override DataViewSchema Schema => _parent._schema;
+            public override long Position => _position;
+            public override long Batch => 0;
+            public override bool IsColumnActive(DataViewSchema.Column column) => true;
+            public override bool MoveNext() => ++_position == 0;
+            public override ValueGetter<DataViewRowId> GetIdGetter() =>
+                (ref DataViewRowId id) => id = new DataViewRowId((ulong)_position, 0);
+
+            public override ValueGetter<TValue> GetGetter<TValue>(DataViewSchema.Column column)
+            {
+                ValueGetter<MLImage> getter = (ref MLImage value) => value = _parent._image;
+                return (ValueGetter<TValue>)(Delegate)getter;
+            }
+        }
+    }
 }
