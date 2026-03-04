@@ -15,7 +15,7 @@ public sealed class OnnxObjectDetectionTransformer : ITransformer, IDisposable
     private readonly OnnxSessionPool _sessionPool;
     private readonly ModelMetadataDiscovery.ModelMetadata _metadata;
 
-    public bool IsRowToRowMapper => false;
+    public bool IsRowToRowMapper => true;
 
     public OnnxObjectDetectionTransformer(OnnxObjectDetectionOptions options)
     {
@@ -67,18 +67,20 @@ public sealed class OnnxObjectDetectionTransformer : ITransformer, IDisposable
         return detections;
     }
 
+    internal OnnxObjectDetectionOptions Options => _options;
+
     public IDataView Transform(IDataView input)
     {
-        // TODO: Implement full IDataView transform with DataView/Cursor pattern
-        throw new NotImplementedException(
-            "Full IDataView Transform is under development. " +
-            "Use the Detect() method for single-image detection.");
+        return new DetectionDataView(input, this);
     }
 
     public DataViewSchema GetOutputSchema(DataViewSchema inputSchema)
     {
         var builder = new DataViewSchema.Builder();
-        builder.AddColumn(_options.OutputColumnName, new VectorDataViewType(NumberDataViewType.Single));
+        for (int i = 0; i < inputSchema.Count; i++)
+            builder.AddColumn(inputSchema[i].Name, inputSchema[i].Type, inputSchema[i].Annotations);
+        builder.AddColumn(_options.OutputColumnName + "_Boxes", new VectorDataViewType(NumberDataViewType.Single));
+        builder.AddColumn(_options.OutputColumnName + "_Count", NumberDataViewType.Int32);
         return builder.ToSchema();
     }
 

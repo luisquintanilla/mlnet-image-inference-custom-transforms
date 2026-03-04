@@ -15,7 +15,7 @@ public sealed class OnnxImageSegmentationTransformer : ITransformer, IDisposable
     private readonly OnnxSessionPool _sessionPool;
     private readonly ModelMetadataDiscovery.ModelMetadata _metadata;
 
-    public bool IsRowToRowMapper => false;
+    public bool IsRowToRowMapper => true;
 
     public OnnxImageSegmentationTransformer(OnnxImageSegmentationOptions options)
     {
@@ -68,17 +68,21 @@ public sealed class OnnxImageSegmentationTransformer : ITransformer, IDisposable
         return MaskPostProcessor.Apply(output, numClasses, outH, outW, originalWidth, originalHeight, _options.Labels);
     }
 
+    internal OnnxImageSegmentationOptions Options => _options;
+
     public IDataView Transform(IDataView input)
     {
-        throw new NotImplementedException(
-            "Full IDataView Transform is under development. " +
-            "Use the Segment() method for single-image segmentation.");
+        return new SegmentationDataView(input, this);
     }
 
     public DataViewSchema GetOutputSchema(DataViewSchema inputSchema)
     {
         var builder = new DataViewSchema.Builder();
+        for (int i = 0; i < inputSchema.Count; i++)
+            builder.AddColumn(inputSchema[i].Name, inputSchema[i].Type, inputSchema[i].Annotations);
         builder.AddColumn(_options.OutputColumnName, new VectorDataViewType(NumberDataViewType.Int32));
+        builder.AddColumn(_options.OutputColumnName + "_Width", NumberDataViewType.Int32);
+        builder.AddColumn(_options.OutputColumnName + "_Height", NumberDataViewType.Int32);
         return builder.ToSchema();
     }
 

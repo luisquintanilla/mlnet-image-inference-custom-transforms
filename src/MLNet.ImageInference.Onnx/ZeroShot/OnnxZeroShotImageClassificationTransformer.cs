@@ -21,7 +21,7 @@ public sealed class OnnxZeroShotImageClassificationTransformer : ITransformer, I
     private readonly ModelMetadataDiscovery.ModelMetadata _imageMetadata;
     private readonly float[][] _textEmbeddings;
 
-    public bool IsRowToRowMapper => false;
+    public bool IsRowToRowMapper => true;
 
     public OnnxZeroShotImageClassificationTransformer(OnnxZeroShotImageClassificationOptions options)
     {
@@ -204,16 +204,18 @@ public sealed class OnnxZeroShotImageClassificationTransformer : ITransformer, I
         return predictions;
     }
 
+    internal OnnxZeroShotImageClassificationOptions Options => _options;
+
     public IDataView Transform(IDataView input)
     {
-        throw new NotImplementedException(
-            "Full IDataView Transform is under development. " +
-            "Use the Classify() method for zero-shot image classification.");
+        return new ZeroShotDataView(input, this);
     }
 
     public DataViewSchema GetOutputSchema(DataViewSchema inputSchema)
     {
         var builder = new DataViewSchema.Builder();
+        for (int i = 0; i < inputSchema.Count; i++)
+            builder.AddColumn(inputSchema[i].Name, inputSchema[i].Type, inputSchema[i].Annotations);
         builder.AddColumn(_options.PredictedLabelColumnName, TextDataViewType.Instance);
         builder.AddColumn(_options.ProbabilityColumnName, new VectorDataViewType(NumberDataViewType.Single));
         return builder.ToSchema();
