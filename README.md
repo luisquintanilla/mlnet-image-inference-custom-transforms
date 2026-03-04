@@ -2,7 +2,7 @@
 
 Custom ML.NET transforms for image inference and generation backed by local ONNX models. Provides `IEstimator<T>`/`ITransformer` implementations with [Microsoft.Extensions.AI](https://learn.microsoft.com/dotnet/ai/microsoft-extensions-ai) (MEAI) integration.
 
-<!-- ![Build Status](https://github.com/your-org/mlnet-image-inference-custom-transforms/actions/workflows/ci.yml/badge.svg) -->
+[![Build](https://github.com/luisquintanilla/mlnet-image-inference-custom-transforms/actions/workflows/ci.yml/badge.svg)](https://github.com/luisquintanilla/mlnet-image-inference-custom-transforms/actions/workflows/ci.yml)
 
 ## Packages
 
