@@ -54,7 +54,7 @@ function Export-OnnxModel {
     }
 }
 
-$totalSteps = 7
+$totalSteps = 10
 $step = 0
 
 Write-Host "=== Downloading Test Models ===" -ForegroundColor Cyan
@@ -154,6 +154,53 @@ Download-Model `
 Download-Model `
     -Url "https://huggingface.co/openai/clip-vit-base-patch32/resolve/main/merges.txt" `
     -OutPath "$clipDir/merges.txt"
+
+# ── 8. DINOv2 ViT-S/14 — self-supervised vision embeddings (~83MB, 384-dim output)
+# Input:  input   [1, 3, 224, 224]  float
+# Output: output  [1, 384]          float
+$step++; Write-Host "[$step/$totalSteps] DINOv2 ViT-S/14 (Embeddings)" -ForegroundColor White
+Download-Model `
+    -Url "https://huggingface.co/sefaburak/dinov2-small-onnx/resolve/main/dinov2_vits14.onnx" `
+    -OutPath "$ModelDir/dinov2/dinov2_vits14.onnx"
+
+# ── 9. ResNet-50 v1.7 — image classification (~98MB, 1000 ImageNet classes)
+# Input:  data                [N, 3, 224, 224]  float
+# Output: resnetv17_dense0_fwd  [N, 1000]       float
+$step++; Write-Host "[$step/$totalSteps] ResNet-50 v1.7 (Classification)" -ForegroundColor White
+Download-Model `
+    -Url "https://huggingface.co/onnxmodelzoo/resnet50-v1-7/resolve/main/resnet50-v1-7.onnx" `
+    -OutPath "$ModelDir/resnet50/resnet50-v1-7.onnx"
+
+# ── 10. DeepLabV3-ResNet50 — semantic segmentation (~160MB, 21 VOC classes)
+# Input:  pixel_values  [batch, 3, 520, 520]  float
+# Output: logits        [batch, 21, H, W]     float
+$step++; Write-Host "[$step/$totalSteps] DeepLabV3-ResNet50 (Segmentation)" -ForegroundColor White
+$deeplabDir = "$ModelDir/deeplabv3"
+$deeplabOnnx = "$deeplabDir/deeplabv3_resnet50.onnx"
+if (!(Test-Path $deeplabDir)) { New-Item -ItemType Directory -Path $deeplabDir -Force | Out-Null }
+if (Test-Path $deeplabOnnx) {
+    Write-Host "  Already exists: $deeplabOnnx" -ForegroundColor Yellow
+} else {
+    Write-Host "  Exporting DeepLabV3-ResNet50 via torch.onnx.export..."
+    python -c @"
+import torch
+import torchvision.models.segmentation as seg
+model = seg.deeplabv3_resnet50(weights=seg.DeepLabV3_ResNet50_Weights.DEFAULT)
+model.eval()
+dummy = torch.randn(1, 3, 520, 520)
+torch.onnx.export(model, dummy, '$($deeplabOnnx -replace '\\','/')',
+    input_names=['pixel_values'], output_names=['logits'],
+    dynamic_axes={'pixel_values': {0: 'batch'}, 'logits': {0: 'batch'}},
+    opset_version=17, do_constant_folding=True)
+print('Done')
+"@
+    if (Test-Path $deeplabOnnx) {
+        Write-Host "  Done ($([math]::Round((Get-Item $deeplabOnnx).Length / 1MB, 1)) MB)" -ForegroundColor Green
+    } else {
+        Write-Host "  ERROR: DeepLabV3 export failed" -ForegroundColor Red
+        exit 1
+    }
+}
 
 Write-Host ""
 Write-Host "=== All models downloaded ===" -ForegroundColor Green

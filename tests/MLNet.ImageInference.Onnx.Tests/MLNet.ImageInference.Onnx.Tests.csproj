@@ -27,6 +27,9 @@
     <Content Include="..\..\models\clip\text_model.onnx" CopyToOutputDirectory="PreserveNewest" LinkBase="models\clip" />
     <Content Include="..\..\models\clip\vocab.json" CopyToOutputDirectory="PreserveNewest" LinkBase="models\clip" />
     <Content Include="..\..\models\clip\merges.txt" CopyToOutputDirectory="PreserveNewest" LinkBase="models\clip" />
+    <Content Include="..\..\models\dinov2\**" CopyToOutputDirectory="PreserveNewest" LinkBase="models\dinov2" />
+    <Content Include="..\..\models\resnet50\**" CopyToOutputDirectory="PreserveNewest" LinkBase="models\resnet50" />
+    <Content Include="..\..\models\deeplabv3\**" CopyToOutputDirectory="PreserveNewest" LinkBase="models\deeplabv3" />
   </ItemGroup>
 
 </Project>
