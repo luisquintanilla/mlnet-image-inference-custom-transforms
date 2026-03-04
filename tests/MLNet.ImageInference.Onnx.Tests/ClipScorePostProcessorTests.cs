@@ -1,3 +1,4 @@
+using Xunit;
 using MLNet.ImageInference.Onnx.ZeroShot;
 
 namespace MLNet.ImageInference.Onnx.Tests;

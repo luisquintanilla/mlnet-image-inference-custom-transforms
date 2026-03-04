@@ -34,8 +34,21 @@ public static class ClipScorePostProcessor
             logits[i] = cosineSim * LogitScale;
         }
 
+        // Numerically stable softmax: subtract max to prevent exp overflow
+        float maxLogit = TensorPrimitives.Max(logits);
+        var expValues = new float[textEmbeddings.Length];
+        for (int i = 0; i < logits.Length; i++)
+        {
+            expValues[i] = MathF.Exp(logits[i] - maxLogit);
+        }
+
+        float sumExp = TensorPrimitives.Sum(expValues);
         var probabilities = new float[textEmbeddings.Length];
-        TensorPrimitives.SoftMax(logits, probabilities);
+        for (int i = 0; i < expValues.Length; i++)
+        {
+            probabilities[i] = expValues[i] / sumExp;
+        }
+
         return probabilities;
     }
 }
