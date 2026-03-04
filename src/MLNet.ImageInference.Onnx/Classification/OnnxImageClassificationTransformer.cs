@@ -17,7 +17,7 @@ public sealed class OnnxImageClassificationTransformer : ITransformer, IDisposab
     private readonly OnnxSessionPool _sessionPool;
     private readonly ModelMetadataDiscovery.ModelMetadata _metadata;
 
-    public bool IsRowToRowMapper => false;
+    public bool IsRowToRowMapper => true;
 
     public OnnxImageClassificationTransformer(OnnxImageClassificationOptions options)
     {
@@ -72,24 +72,26 @@ public sealed class OnnxImageClassificationTransformer : ITransformer, IDisposab
         return predictions;
     }
 
+    internal OnnxImageClassificationOptions Options => _options;
+
     public IDataView Transform(IDataView input)
     {
-        // TODO: Implement full IDataView transform with DataView/Cursor pattern
-        throw new NotImplementedException(
-            "Full IDataView Transform is under development. " +
-            "Use the Classify() method for single-image classification.");
+        return new ClassificationDataView(input, this);
     }
 
     public DataViewSchema GetOutputSchema(DataViewSchema inputSchema)
     {
         var builder = new DataViewSchema.Builder();
+        for (int i = 0; i < inputSchema.Count; i++)
+            builder.AddColumn(inputSchema[i].Name, inputSchema[i].Type, inputSchema[i].Annotations);
         builder.AddColumn(_options.PredictedLabelColumnName, TextDataViewType.Instance);
         builder.AddColumn(_options.ProbabilityColumnName, new VectorDataViewType(NumberDataViewType.Single));
         return builder.ToSchema();
     }
 
     public IRowToRowMapper GetRowToRowMapper(DataViewSchema inputSchema)
-        => throw new InvalidOperationException("This transformer does not support row-to-row mapping.");
+        => throw new InvalidOperationException(
+            "Use Transform() to get an IDataView. Direct IRowToRowMapper is not supported.");
 
     void ICanSaveModel.Save(ModelSaveContext ctx)
         => throw new NotSupportedException("Use transformer-specific save/load instead of mlContext.Model.Save().");
