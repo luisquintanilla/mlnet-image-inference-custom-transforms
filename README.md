@@ -80,9 +80,9 @@ float[] imageEmbedding = transformer.GenerateEmbedding(image);
 |---|---|---|---|
 | Image Classification | ✅ Implemented | `MLNet.ImageInference.Onnx` | — |
 | Image Embeddings | ✅ Implemented | `MLNet.ImageInference.Onnx` | `IEmbeddingGenerator<MLImage, Embedding<float>>` |
-| Object Detection | 📋 Planned | `MLNet.ImageInference.Onnx` | — |
-| Image Segmentation | 📋 Planned | `MLNet.ImageInference.Onnx` | — |
-| Zero-Shot Classification | 📋 Planned | `MLNet.ImageInference.Onnx` | — |
+| Object Detection | ✅ Implemented | `MLNet.ImageInference.Onnx` | — |
+| Image Segmentation | ✅ Implemented | `MLNet.ImageInference.Onnx` | — |
+| Zero-Shot Classification | ✅ Implemented | `MLNet.ImageInference.Onnx` | — |
 | Text-to-Image Generation | 📋 Planned | `MLNet.ImageGeneration.OnnxGenAI` | `IImageGenerator` (experimental) |
 
 ## Samples
@@ -146,6 +146,28 @@ dotnet build MLNet.Image.slnx
 
 - [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
 - ONNX models (see [Model Requirements](#model-requirements))
+
+## Testing
+
+**107 tests** across three test projects — all passing.
+
+| Test Project | Tests | Description |
+|---|---|---|
+| Core | 37 | Image preprocessing, conversions, result types |
+| Tokenizers | 14 | CLIP tokenizer encoding/decoding |
+| Inference | 56 | End-to-end ONNX inference across all 5 tasks |
+
+### Tested Models
+
+All five supported tasks are validated against real ONNX models:
+
+| Model | Task | Notes |
+|---|---|---|
+| SqueezeNet 1.0 | Classification | ImageNet-1K labels, top-K predictions |
+| MobileNetV2 | Classification | Lightweight alternative model |
+| YOLOv8n | Object Detection | Bounding box NMS post-processing |
+| SegFormer-b0 | Segmentation | Dynamic shape handling (bug found & fixed in Phase 4) |
+| CLIP ViT-B/32 | Embeddings / Zero-Shot | Image+text embedding, cosine similarity |
 
 ## Related Projects
 
