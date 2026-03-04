@@ -134,6 +134,56 @@ if (imageFiles.Length > 0)
 }
 
 Console.WriteLine();
+
+// --- Style 3: ML.NET IDataView Pipeline ---
+Console.WriteLine("--- Style 3: ML.NET IDataView Pipeline ---");
+Console.WriteLine();
+
+if (imageFiles.Length > 0)
+{
+    var mlContext = new MLContext();
+
+    // Load images into an IDataView
+    var images = imageFiles.Select(f => MLImage.CreateFromFile(f)).ToArray();
+    var sourceDataView = new ImageDataView(images);
+
+    // Build embedding pipeline
+    var embeddingPipeline = mlContext.Transforms.OnnxImageEmbedding(new OnnxImageEmbeddingOptions
+    {
+        ModelPath = modelPath,
+        PreprocessorConfig = PreprocessorConfig.CLIP,
+        Pooling = PoolingStrategy.ClsToken,
+        Normalize = true
+    });
+
+    // Fit and transform
+    using var embeddingModel = embeddingPipeline.Fit(sourceDataView);
+    var transformed = embeddingModel.Transform(sourceDataView);
+
+    // Read embedding results from the cursor
+    var embeddingCol = transformed.Schema["Embedding"];
+    using var cursor = transformed.GetRowCursor(transformed.Schema);
+    var embeddingGetter = cursor.GetGetter<VBuffer<float>>(embeddingCol);
+
+    int rowIndex = 0;
+    while (cursor.MoveNext())
+    {
+        VBuffer<float> embedding = default;
+        embeddingGetter(ref embedding);
+
+        var values = embedding.GetValues().ToArray();
+        Console.WriteLine($"  {Path.GetFileName(imageFiles[rowIndex])}: dim={values.Length}, [{string.Join(", ", values.Take(5).Select(v => v.ToString("F4")))}...]");
+        rowIndex++;
+    }
+
+    foreach (var img in images) img.Dispose();
+}
+else
+{
+    Console.WriteLine("No test images found. Skipping IDataView pipeline demo.");
+}
+
+Console.WriteLine();
 Console.WriteLine("Done!");
 
 static float CosineSimilarity(float[] a, float[] b)
@@ -146,4 +196,50 @@ static float CosineSimilarity(float[] a, float[] b)
         normB += b[i] * b[i];
     }
     return dot / (MathF.Sqrt(normA) * MathF.Sqrt(normB));
+}
+
+/// <summary>
+/// Minimal IDataView that serves MLImage rows through the "Image" column.
+/// </summary>
+sealed class ImageDataView : IDataView
+{
+    private readonly MLImage[] _images;
+    private readonly DataViewSchema _schema;
+
+    public ImageDataView(MLImage[] images)
+    {
+        _images = images;
+        var builder = new DataViewSchema.Builder();
+        builder.AddColumn("Image", NumberDataViewType.Single);
+        _schema = builder.ToSchema();
+    }
+
+    public DataViewSchema Schema => _schema;
+    public bool CanShuffle => false;
+    public long? GetRowCount() => _images.Length;
+
+    public DataViewRowCursor GetRowCursor(IEnumerable<DataViewSchema.Column> columnsNeeded, Random? rand = null)
+        => new ImageCursor(this);
+
+    public DataViewRowCursor[] GetRowCursorSet(IEnumerable<DataViewSchema.Column> columnsNeeded, int n, Random? rand = null)
+        => [GetRowCursor(columnsNeeded, rand)];
+
+    private sealed class ImageCursor(ImageDataView parent) : DataViewRowCursor
+    {
+        private long _position = -1;
+
+        public override DataViewSchema Schema => parent._schema;
+        public override long Position => _position;
+        public override long Batch => 0;
+        public override bool IsColumnActive(DataViewSchema.Column column) => true;
+        public override bool MoveNext() => ++_position < parent._images.Length;
+        public override ValueGetter<DataViewRowId> GetIdGetter() =>
+            (ref DataViewRowId id) => id = new DataViewRowId((ulong)_position, 0);
+
+        public override ValueGetter<TValue> GetGetter<TValue>(DataViewSchema.Column column)
+        {
+            ValueGetter<MLImage> getter = (ref MLImage value) => value = parent._images[_position];
+            return (ValueGetter<TValue>)(Delegate)getter;
+        }
+    }
 }

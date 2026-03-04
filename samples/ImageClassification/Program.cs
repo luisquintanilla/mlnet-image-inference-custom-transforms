@@ -67,26 +67,93 @@ foreach (var (label, probability) in predictions)
 
 Console.WriteLine();
 
-// --- Style 2: ML.NET Pipeline (composable) ---
-Console.WriteLine("--- Style 2: ML.NET Pipeline ---");
+// --- Style 2: ML.NET IDataView Pipeline (composable) ---
+Console.WriteLine("--- Style 2: ML.NET IDataView Pipeline ---");
 Console.WriteLine();
 
 var mlContext = new MLContext();
+
+// Load images into an IDataView
+using var pipelineImage = MLImage.CreateFromFile(imagePath);
+var sourceDataView = new ImageDataView([pipelineImage]);
 
 // Build pipeline using MLContext extension method
 var pipeline = mlContext.Transforms.OnnxImageClassification(new OnnxImageClassificationOptions
 {
     ModelPath = modelPath,
-    InputColumnName = "Image",
-    PredictedLabelColumnName = "PredictedLabel",
-    ProbabilityColumnName = "Score",
     PreprocessorConfig = PreprocessorConfig.ImageNet,
     TopK = 5
 });
 
-Console.WriteLine("Pipeline created successfully.");
-Console.WriteLine("Full IDataView Transform() support coming soon.");
-Console.WriteLine("For now, use the direct Classify() API shown above.");
+// Fit and transform
+using var model = pipeline.Fit(sourceDataView);
+var transformed = model.Transform(sourceDataView);
+
+// Read results from the cursor
+var labelCol = transformed.Schema["PredictedLabel"];
+var probCol = transformed.Schema["Probability"];
+
+using var cursor = transformed.GetRowCursor(transformed.Schema);
+var labelGetter = cursor.GetGetter<ReadOnlyMemory<char>>(labelCol);
+var probGetter = cursor.GetGetter<VBuffer<float>>(probCol);
+
+while (cursor.MoveNext())
+{
+    ReadOnlyMemory<char> label = default;
+    VBuffer<float> probs = default;
+    labelGetter(ref label);
+    probGetter(ref probs);
+
+    Console.WriteLine($"  PredictedLabel: {label}");
+    var topProbs = probs.GetValues().ToArray().Take(5).Select(v => v.ToString("P2"));
+    Console.WriteLine($"  Top probabilities: [{string.Join(", ", topProbs)}]");
+}
 
 Console.WriteLine();
 Console.WriteLine("Done!");
+
+/// <summary>
+/// Minimal IDataView that serves MLImage rows through the "Image" column.
+/// </summary>
+sealed class ImageDataView : IDataView
+{
+    private readonly MLImage[] _images;
+    private readonly DataViewSchema _schema;
+
+    public ImageDataView(MLImage[] images)
+    {
+        _images = images;
+        var builder = new DataViewSchema.Builder();
+        builder.AddColumn("Image", NumberDataViewType.Single);
+        _schema = builder.ToSchema();
+    }
+
+    public DataViewSchema Schema => _schema;
+    public bool CanShuffle => false;
+    public long? GetRowCount() => _images.Length;
+
+    public DataViewRowCursor GetRowCursor(IEnumerable<DataViewSchema.Column> columnsNeeded, Random? rand = null)
+        => new ImageCursor(this);
+
+    public DataViewRowCursor[] GetRowCursorSet(IEnumerable<DataViewSchema.Column> columnsNeeded, int n, Random? rand = null)
+        => [GetRowCursor(columnsNeeded, rand)];
+
+    private sealed class ImageCursor(ImageDataView parent) : DataViewRowCursor
+    {
+        private long _position = -1;
+
+        public override DataViewSchema Schema => parent._schema;
+        public override long Position => _position;
+        public override long Batch => 0;
+        public override bool IsColumnActive(DataViewSchema.Column column) => true;
+        public override bool MoveNext() => ++_position < parent._images.Length;
+        public override ValueGetter<DataViewRowId> GetIdGetter() =>
+            (ref DataViewRowId id) => id = new DataViewRowId((ulong)_position, 0);
+
+        public override ValueGetter<TValue> GetGetter<TValue>(DataViewSchema.Column column)
+        {
+            ValueGetter<MLImage> getter = (ref MLImage value) => value = parent._images[_position];
+            return (ValueGetter<TValue>)(Delegate)getter;
+        }
+    }
+}
