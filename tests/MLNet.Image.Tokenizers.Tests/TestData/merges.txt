@@ -1,0 +1,16 @@
+#version: 0.2
+c a
+d o
+Ġ c
+Ġ a
+Ġ t
+Ġt h
+Ġth e
+ca t</w>
+Ġ d
+Ġd o
+do g</w>
+Ġ i
+Ġi s
+Ġ o
+Ġo n
