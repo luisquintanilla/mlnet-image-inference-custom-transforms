@@ -67,6 +67,24 @@ public sealed class OnnxObjectDetectionTransformer : ITransformer, IDisposable
         return detections;
     }
 
+    /// <summary>
+    /// Detects objects in a batch of images.
+    /// </summary>
+    public BoundingBox[][] DetectBatch(IReadOnlyList<MLImage> images)
+    {
+        if (images == null || images.Count == 0)
+            return Array.Empty<BoundingBox[]>();
+
+        // Detection models (YOLO) typically have fixed batch=1, so just loop
+        // True batching for detection is complex due to NMS being per-image
+        var results = new BoundingBox[images.Count][];
+        for (int i = 0; i < images.Count; i++)
+        {
+            results[i] = Detect(images[i]);
+        }
+        return results;
+    }
+
     internal OnnxObjectDetectionOptions Options => _options;
 
     public IDataView Transform(IDataView input)

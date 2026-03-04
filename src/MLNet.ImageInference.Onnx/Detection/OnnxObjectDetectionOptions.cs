@@ -30,4 +30,11 @@ public class OnnxObjectDetectionOptions
 
     /// <summary>Maximum number of detections to return. Null means all.</summary>
     public int? MaxDetections { get; init; }
+
+    /// <summary>
+    /// Gets or sets the batch size for IDataView cursor lookahead batching.
+    /// Higher values reduce the number of ONNX inference calls but use more memory.
+    /// Default is 32.
+    /// </summary>
+    public int BatchSize { get; set; } = 32;
 }

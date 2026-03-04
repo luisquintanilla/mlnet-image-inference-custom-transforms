@@ -27,4 +27,11 @@ public class OnnxImageClassificationOptions
 
     /// <summary>Number of top predictions to return. Default: all.</summary>
     public int? TopK { get; init; }
+
+    /// <summary>
+    /// Gets or sets the batch size for IDataView cursor lookahead batching.
+    /// Higher values reduce the number of ONNX inference calls but use more memory.
+    /// Default is 32.
+    /// </summary>
+    public int BatchSize { get; set; } = 32;
 }

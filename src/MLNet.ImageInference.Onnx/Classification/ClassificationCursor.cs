@@ -13,10 +13,19 @@ internal sealed class ClassificationCursor : DataViewRowCursor
     private readonly DataViewRowCursor _sourceCursor;
     private readonly OnnxImageClassificationTransformer _transformer;
     private readonly DataViewSchema.Column? _inputCol;
+    private readonly int _batchSize;
 
     private string _predictedLabel = string.Empty;
     private float[] _probabilities = [];
     private bool _disposed;
+
+    // Lookahead batching state
+    private List<(string Label, float[] Probabilities)> _batchResults = new();
+    private List<MLImage> _batchImages = new();
+    private readonly Dictionary<int, IColumnCache> _passthroughCaches = new();
+    private int _batchIndex = -1;
+    private bool _inputExhausted;
+    private long _position = -1;
 
     public ClassificationCursor(
         ClassificationDataView parent,
@@ -28,13 +37,14 @@ internal sealed class ClassificationCursor : DataViewRowCursor
         _sourceCursor = sourceCursor;
         _transformer = transformer;
         _inputCol = inputCol;
+        _batchSize = transformer.Options.BatchSize;
     }
 
     public override DataViewSchema Schema => _parent.Schema;
 
-    public override long Position => _sourceCursor.Position;
+    public override long Position => _position;
 
-    public override long Batch => _sourceCursor.Batch;
+    public override long Batch => 0;
 
     public override bool IsColumnActive(DataViewSchema.Column column)
     {
@@ -47,29 +57,76 @@ internal sealed class ClassificationCursor : DataViewRowCursor
 
     public override bool MoveNext()
     {
-        if (!_sourceCursor.MoveNext())
-            return false;
+        _batchIndex++;
 
-        if (_inputCol.HasValue)
+        if (_batchResults.Count == 0 || _batchIndex >= _batchResults.Count)
         {
-            MLImage image = null!;
-            var getter = _sourceCursor.GetGetter<MLImage>(_inputCol.Value);
-            getter(ref image);
-
-            var results = _transformer.Classify(image);
-
-            _predictedLabel = results.Length > 0 ? results[0].Label : string.Empty;
-            _probabilities = new float[results.Length];
-            for (int i = 0; i < results.Length; i++)
-                _probabilities[i] = results[i].Probability;
+            if (_inputExhausted)
+                return false;
+            if (!FillNextBatch())
+                return false;
         }
-        else
-        {
-            _predictedLabel = string.Empty;
-            _probabilities = [];
-        }
+
+        _predictedLabel = _batchResults[_batchIndex].Label;
+        _probabilities = _batchResults[_batchIndex].Probabilities;
+        _position++;
 
         return true;
+    }
+
+    private bool FillNextBatch()
+    {
+        _batchResults.Clear();
+        _batchImages.Clear();
+        foreach (var cache in _passthroughCaches.Values)
+            cache.Clear();
+        _batchIndex = 0;
+
+        var images = new List<MLImage>();
+
+        for (int i = 0; i < _batchSize; i++)
+        {
+            if (!_sourceCursor.MoveNext())
+            {
+                _inputExhausted = true;
+                break;
+            }
+
+            if (_inputCol.HasValue)
+            {
+                MLImage image = null!;
+                var getter = _sourceCursor.GetGetter<MLImage>(_inputCol.Value);
+                getter(ref image);
+                images.Add(image);
+                _batchImages.Add(image);
+            }
+            else
+            {
+                // No input column — produce empty results for this row
+                _batchResults.Add((string.Empty, Array.Empty<float>()));
+            }
+
+            // Cache any registered passthrough columns
+            foreach (var cache in _passthroughCaches.Values)
+                cache.ReadCurrentRow();
+        }
+
+        if (images.Count > 0)
+        {
+            var batchResults = _transformer.ClassifyBatch(images);
+
+            for (int i = 0; i < batchResults.Length; i++)
+            {
+                var results = batchResults[i];
+                var label = results.Length > 0 ? results[0].Label : string.Empty;
+                var probs = new float[results.Length];
+                for (int j = 0; j < results.Length; j++)
+                    probs[j] = results[j].Probability;
+                _batchResults.Add((label, probs));
+            }
+        }
+
+        return _batchResults.Count > 0;
     }
 
     public override ValueGetter<TValue> GetGetter<TValue>(DataViewSchema.Column column)
@@ -88,15 +145,35 @@ internal sealed class ClassificationCursor : DataViewRowCursor
             return (ValueGetter<TValue>)(Delegate)getter;
         }
 
-        // Passthrough to source cursor
+        // Passthrough: serve cached image for the input column
         if (column.Index < _sourceCursor.Schema.Count)
-            return _sourceCursor.GetGetter<TValue>(_sourceCursor.Schema[column.Index]);
+        {
+            if (_inputCol.HasValue && column.Index == _inputCol.Value.Index)
+            {
+                ValueGetter<MLImage> imgGetter = (ref MLImage value) => value = _batchImages[_batchIndex];
+                return (ValueGetter<TValue>)(Delegate)imgGetter;
+            }
+
+            // Lazy-register passthrough cache for other source columns
+            if (!_passthroughCaches.TryGetValue(column.Index, out _))
+            {
+                var sourceGetter = _sourceCursor.GetGetter<TValue>(_sourceCursor.Schema[column.Index]);
+                _passthroughCaches[column.Index] = new PassthroughCache<TValue>(sourceGetter);
+            }
+
+            var cache = (PassthroughCache<TValue>)_passthroughCaches[column.Index];
+            return (ref TValue value) =>
+            {
+                if (_batchIndex >= 0 && _batchIndex < cache.Values.Count)
+                    value = cache.Values[_batchIndex];
+            };
+        }
 
         throw new ArgumentOutOfRangeException(nameof(column), $"Column index {column.Index} is out of range.");
     }
 
     public override ValueGetter<DataViewRowId> GetIdGetter()
-        => _sourceCursor.GetIdGetter();
+        => (ref DataViewRowId id) => id = new DataViewRowId((ulong)_position, 0);
 
     protected override void Dispose(bool disposing)
     {
@@ -107,5 +184,33 @@ internal sealed class ClassificationCursor : DataViewRowCursor
             _disposed = true;
         }
         base.Dispose(disposing);
+    }
+
+    /// <summary>Type-erased interface for passthrough column value caching.</summary>
+    private interface IColumnCache
+    {
+        void ReadCurrentRow();
+        void Clear();
+    }
+
+    /// <summary>Typed cache that reads and stores values from a source cursor getter.</summary>
+    private sealed class PassthroughCache<T> : IColumnCache
+    {
+        private readonly ValueGetter<T> _sourceGetter;
+        public readonly List<T> Values = new();
+
+        public PassthroughCache(ValueGetter<T> sourceGetter)
+        {
+            _sourceGetter = sourceGetter;
+        }
+
+        public void ReadCurrentRow()
+        {
+            T val = default!;
+            _sourceGetter(ref val);
+            Values.Add(val);
+        }
+
+        public void Clear() => Values.Clear();
     }
 }

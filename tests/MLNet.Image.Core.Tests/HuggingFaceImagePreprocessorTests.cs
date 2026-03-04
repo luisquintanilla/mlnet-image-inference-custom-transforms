@@ -106,4 +106,63 @@ public class HuggingFaceImagePreprocessorTests
         // Different configs should produce different normalized values
         Assert.NotEqual(imageNetResult[0], clipResult[0]);
     }
+
+    [Fact]
+    public void PreprocessBatch_ReturnsConcatenatedTensor()
+    {
+        using var img1 = CreateSolidColorImage(4, 4, 255, 0, 0);
+        using var img2 = CreateSolidColorImage(4, 4, 0, 255, 0);
+        var config = new PreprocessorConfig { CropSize = (4, 4) };
+        var images = new List<MLImage> { img1, img2 };
+
+        float[] result = HuggingFaceImagePreprocessor.PreprocessBatch(images, config);
+
+        int channels = 3;
+        int height = config.CropSize.Height;
+        int width = config.CropSize.Width;
+        Assert.Equal(images.Count * channels * height * width, result.Length);
+    }
+
+    [Fact]
+    public void PreprocessBatch_MatchesIndividualPreprocess()
+    {
+        using var img1 = CreateSolidColorImage(4, 4, 255, 0, 0);
+        using var img2 = CreateSolidColorImage(4, 4, 0, 255, 0);
+        var config = new PreprocessorConfig { CropSize = (4, 4) };
+
+        float[] single1 = HuggingFaceImagePreprocessor.Preprocess(img1, config);
+        float[] single2 = HuggingFaceImagePreprocessor.Preprocess(img2, config);
+        float[] batch = HuggingFaceImagePreprocessor.PreprocessBatch(new List<MLImage> { img1, img2 }, config);
+
+        // First image region should match single preprocess
+        for (int i = 0; i < single1.Length; i++)
+            Assert.Equal(single1[i], batch[i]);
+
+        // Second image region should match single preprocess
+        for (int i = 0; i < single2.Length; i++)
+            Assert.Equal(single2[i], batch[single1.Length + i]);
+    }
+
+    [Fact]
+    public void PreprocessBatch_ThrowsOnEmptyCollection()
+    {
+        var config = PreprocessorConfig.ImageNet;
+
+        Assert.Throws<ArgumentException>(() =>
+            HuggingFaceImagePreprocessor.PreprocessBatch(new List<MLImage>(), config));
+    }
+
+    [Fact]
+    public void PreprocessBatch_SingleImage_MatchesPreprocess()
+    {
+        using var image = CreateSolidColorImage(4, 4, 128, 64, 32);
+        var config = new PreprocessorConfig { CropSize = (4, 4) };
+
+        float[] single = HuggingFaceImagePreprocessor.Preprocess(image, config);
+        float[] batch = HuggingFaceImagePreprocessor.PreprocessBatch(new List<MLImage> { image }, config);
+
+        Assert.Equal(single.Length, batch.Length);
+        for (int i = 0; i < single.Length; i++)
+            Assert.Equal(single[i], batch[i]);
+    }
 }

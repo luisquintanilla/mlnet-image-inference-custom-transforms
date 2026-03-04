@@ -204,6 +204,24 @@ public sealed class OnnxZeroShotImageClassificationTransformer : ITransformer, I
         return predictions;
     }
 
+    /// <summary>
+    /// Classifies a batch of images using zero-shot classification with pre-encoded labels.
+    /// </summary>
+    public (string Label, float Probability)[][] ClassifyBatch(IReadOnlyList<MLImage> images)
+    {
+        if (images == null || images.Count == 0)
+            return Array.Empty<(string, float)[]>();
+
+        // Zero-shot scoring involves vision encoder + cosine similarity with pre-encoded text embeddings
+        // Loop individual calls — text embeddings are already cached
+        var results = new (string Label, float Probability)[images.Count][];
+        for (int i = 0; i < images.Count; i++)
+        {
+            results[i] = Classify(images[i]);
+        }
+        return results;
+    }
+
     internal OnnxZeroShotImageClassificationOptions Options => _options;
 
     public IDataView Transform(IDataView input)

@@ -88,21 +88,28 @@ public static class HuggingFaceImagePreprocessor
     }
 
     /// <summary>
-    /// Preprocess a batch of MLImages into normalized float tensors.
+    /// Preprocesses a batch of images into a single contiguous tensor of shape [N, C, H, W].
     /// </summary>
     /// <param name="images">The input MLImages (already resized to target size).</param>
     /// <param name="config">Preprocessing configuration.</param>
-    /// <returns>Array of float arrays, each in CHW format.</returns>
-    public static float[][] PreprocessBatch(IReadOnlyList<MLImage> images, PreprocessorConfig config)
+    /// <returns>Float array of shape [N, 3, H, W] containing all images in CHW format.</returns>
+    public static float[] PreprocessBatch(IReadOnlyList<MLImage> images, PreprocessorConfig config)
     {
-        ArgumentNullException.ThrowIfNull(images);
-        ArgumentNullException.ThrowIfNull(config);
+        if (images == null || images.Count == 0)
+            throw new ArgumentException("Images collection must not be null or empty.", nameof(images));
 
-        var results = new float[images.Count][];
+        int channels = 3;
+        int height = config.CropSize.Height;
+        int width = config.CropSize.Width;
+        int singleImageSize = channels * height * width;
+        var result = new float[images.Count * singleImageSize];
+
         for (int i = 0; i < images.Count; i++)
         {
-            results[i] = Preprocess(images[i], config);
+            var singleResult = Preprocess(images[i], config);
+            Array.Copy(singleResult, 0, result, i * singleImageSize, singleImageSize);
         }
-        return results;
+
+        return result;
     }
 }

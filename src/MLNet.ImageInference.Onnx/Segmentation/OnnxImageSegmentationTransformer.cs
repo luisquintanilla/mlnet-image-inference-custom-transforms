@@ -59,6 +59,24 @@ public sealed class OnnxImageSegmentationTransformer : ITransformer, IDisposable
         return MaskPostProcessor.Apply(output, numClasses, outH, outW, originalWidth, originalHeight, _options.Labels);
     }
 
+    /// <summary>
+    /// Segments a batch of images.
+    /// </summary>
+    public SegmentationMask[] SegmentBatch(IReadOnlyList<MLImage> images)
+    {
+        if (images == null || images.Count == 0)
+            return Array.Empty<SegmentationMask>();
+
+        // Segmentation post-processing (argmax + resize) is per-image
+        // Loop individual calls for now — true batching is a future optimization
+        var results = new SegmentationMask[images.Count];
+        for (int i = 0; i < images.Count; i++)
+        {
+            results[i] = Segment(images[i]);
+        }
+        return results;
+    }
+
     internal OnnxImageSegmentationOptions Options => _options;
 
     public IDataView Transform(IDataView input)

@@ -35,18 +35,20 @@ public sealed class OnnxImageEmbeddingGenerator : IEmbeddingGenerator<MLImage, E
     {
     }
 
-    public Task<GeneratedEmbeddings<Embedding<float>>> GenerateAsync(
+    public async Task<GeneratedEmbeddings<Embedding<float>>> GenerateAsync(
         IEnumerable<MLImage> values,
         EmbeddingGenerationOptions? options = null,
         CancellationToken cancellationToken = default)
     {
-        var imageList = values.ToList();
-        var embeddings = _transformer.GenerateEmbeddings(imageList);
+        var imageList = values as IReadOnlyList<MLImage> ?? values.ToList();
+        var batchResults = _transformer.GenerateEmbeddingBatch(imageList);
 
-        var result = new GeneratedEmbeddings<Embedding<float>>(
-            embeddings.Select(e => new Embedding<float>(e)).ToList());
-
-        return Task.FromResult(result);
+        var embeddings = new GeneratedEmbeddings<Embedding<float>>();
+        foreach (var embedding in batchResults)
+        {
+            embeddings.Add(new Embedding<float>(embedding));
+        }
+        return embeddings;
     }
 
     public object? GetService(Type serviceType, object? serviceKey = null)

@@ -14,10 +14,17 @@ internal sealed class DetectionCursor : DataViewRowCursor
     private readonly DataViewRowCursor _sourceCursor;
     private readonly OnnxObjectDetectionTransformer _transformer;
     private readonly DataViewSchema.Column? _inputCol;
+    private readonly int _batchSize;
 
     private float[] _boxes = [];
     private int _count;
     private bool _disposed;
+
+    // Lookahead batching state
+    private List<(float[] Boxes, int Count)> _batchResults = new();
+    private int _batchIndex = -1;
+    private bool _inputExhausted;
+    private long _position = -1;
 
     public DetectionCursor(
         DetectionDataView parent,
@@ -29,13 +36,14 @@ internal sealed class DetectionCursor : DataViewRowCursor
         _sourceCursor = sourceCursor;
         _transformer = transformer;
         _inputCol = inputCol;
+        _batchSize = transformer.Options.BatchSize;
     }
 
     public override DataViewSchema Schema => _parent.Schema;
 
-    public override long Position => _sourceCursor.Position;
+    public override long Position => _position;
 
-    public override long Batch => _sourceCursor.Batch;
+    public override long Batch => 0;
 
     public override bool IsColumnActive(DataViewSchema.Column column)
     {
@@ -48,38 +56,78 @@ internal sealed class DetectionCursor : DataViewRowCursor
 
     public override bool MoveNext()
     {
-        if (!_sourceCursor.MoveNext())
-            return false;
+        _batchIndex++;
 
-        if (_inputCol.HasValue)
+        if (_batchResults.Count == 0 || _batchIndex >= _batchResults.Count)
         {
-            MLImage image = null!;
-            var getter = _sourceCursor.GetGetter<MLImage>(_inputCol.Value);
-            getter(ref image);
-
-            var detections = _transformer.Detect(image);
-            _count = detections.Length;
-
-            // Flatten: 6 values per detection [x, y, w, h, classId, score]
-            _boxes = new float[_count * 6];
-            for (int i = 0; i < _count; i++)
-            {
-                int offset = i * 6;
-                _boxes[offset] = detections[i].X;
-                _boxes[offset + 1] = detections[i].Y;
-                _boxes[offset + 2] = detections[i].Width;
-                _boxes[offset + 3] = detections[i].Height;
-                _boxes[offset + 4] = detections[i].ClassId;
-                _boxes[offset + 5] = detections[i].Score;
-            }
+            if (_inputExhausted)
+                return false;
+            if (!FillNextBatch())
+                return false;
         }
-        else
-        {
-            _boxes = [];
-            _count = 0;
-        }
+
+        _boxes = _batchResults[_batchIndex].Boxes;
+        _count = _batchResults[_batchIndex].Count;
+        _position++;
 
         return true;
+    }
+
+    private bool FillNextBatch()
+    {
+        _batchResults.Clear();
+        _batchIndex = 0;
+
+        var images = new List<MLImage>();
+
+        for (int i = 0; i < _batchSize; i++)
+        {
+            if (!_sourceCursor.MoveNext())
+            {
+                _inputExhausted = true;
+                break;
+            }
+
+            if (_inputCol.HasValue)
+            {
+                MLImage image = null!;
+                var getter = _sourceCursor.GetGetter<MLImage>(_inputCol.Value);
+                getter(ref image);
+                images.Add(image);
+            }
+            else
+            {
+                _batchResults.Add((Array.Empty<float>(), 0));
+            }
+        }
+
+        if (images.Count > 0)
+        {
+            var batchResults = _transformer.DetectBatch(images);
+
+            for (int i = 0; i < batchResults.Length; i++)
+            {
+                var detections = batchResults[i];
+                var count = detections.Length;
+
+                // Flatten: 6 values per detection [x, y, w, h, classId, score]
+                var boxes = new float[count * 6];
+                for (int j = 0; j < count; j++)
+                {
+                    int offset = j * 6;
+                    boxes[offset] = detections[j].X;
+                    boxes[offset + 1] = detections[j].Y;
+                    boxes[offset + 2] = detections[j].Width;
+                    boxes[offset + 3] = detections[j].Height;
+                    boxes[offset + 4] = detections[j].ClassId;
+                    boxes[offset + 5] = detections[j].Score;
+                }
+
+                _batchResults.Add((boxes, count));
+            }
+        }
+
+        return _batchResults.Count > 0;
     }
 
     public override ValueGetter<TValue> GetGetter<TValue>(DataViewSchema.Column column)

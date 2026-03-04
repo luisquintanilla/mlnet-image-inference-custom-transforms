@@ -13,10 +13,17 @@ internal sealed class ZeroShotCursor : DataViewRowCursor
     private readonly DataViewRowCursor _sourceCursor;
     private readonly OnnxZeroShotImageClassificationTransformer _transformer;
     private readonly DataViewSchema.Column? _inputCol;
+    private readonly int _batchSize;
 
     private string _predictedLabel = string.Empty;
     private float[] _probabilities = [];
     private bool _disposed;
+
+    // Lookahead batching state
+    private List<(string Label, float[] Probabilities)> _batchResults = new();
+    private int _batchIndex = -1;
+    private bool _inputExhausted;
+    private long _position = -1;
 
     public ZeroShotCursor(
         ZeroShotDataView parent,
@@ -28,13 +35,14 @@ internal sealed class ZeroShotCursor : DataViewRowCursor
         _sourceCursor = sourceCursor;
         _transformer = transformer;
         _inputCol = inputCol;
+        _batchSize = transformer.Options.BatchSize;
     }
 
     public override DataViewSchema Schema => _parent.Schema;
 
-    public override long Position => _sourceCursor.Position;
+    public override long Position => _position;
 
-    public override long Batch => _sourceCursor.Batch;
+    public override long Batch => 0;
 
     public override bool IsColumnActive(DataViewSchema.Column column)
     {
@@ -47,29 +55,67 @@ internal sealed class ZeroShotCursor : DataViewRowCursor
 
     public override bool MoveNext()
     {
-        if (!_sourceCursor.MoveNext())
-            return false;
+        _batchIndex++;
 
-        if (_inputCol.HasValue)
+        if (_batchResults.Count == 0 || _batchIndex >= _batchResults.Count)
         {
-            MLImage image = null!;
-            var getter = _sourceCursor.GetGetter<MLImage>(_inputCol.Value);
-            getter(ref image);
-
-            var results = _transformer.Classify(image);
-
-            _predictedLabel = results.Length > 0 ? results[0].Label : string.Empty;
-            _probabilities = new float[results.Length];
-            for (int i = 0; i < results.Length; i++)
-                _probabilities[i] = results[i].Probability;
+            if (_inputExhausted)
+                return false;
+            if (!FillNextBatch())
+                return false;
         }
-        else
-        {
-            _predictedLabel = string.Empty;
-            _probabilities = [];
-        }
+
+        _predictedLabel = _batchResults[_batchIndex].Label;
+        _probabilities = _batchResults[_batchIndex].Probabilities;
+        _position++;
 
         return true;
+    }
+
+    private bool FillNextBatch()
+    {
+        _batchResults.Clear();
+        _batchIndex = 0;
+
+        var images = new List<MLImage>();
+
+        for (int i = 0; i < _batchSize; i++)
+        {
+            if (!_sourceCursor.MoveNext())
+            {
+                _inputExhausted = true;
+                break;
+            }
+
+            if (_inputCol.HasValue)
+            {
+                MLImage image = null!;
+                var getter = _sourceCursor.GetGetter<MLImage>(_inputCol.Value);
+                getter(ref image);
+                images.Add(image);
+            }
+            else
+            {
+                _batchResults.Add((string.Empty, Array.Empty<float>()));
+            }
+        }
+
+        if (images.Count > 0)
+        {
+            var batchResults = _transformer.ClassifyBatch(images);
+
+            for (int i = 0; i < batchResults.Length; i++)
+            {
+                var results = batchResults[i];
+                var label = results.Length > 0 ? results[0].Label : string.Empty;
+                var probs = new float[results.Length];
+                for (int j = 0; j < results.Length; j++)
+                    probs[j] = results[j].Probability;
+                _batchResults.Add((label, probs));
+            }
+        }
+
+        return _batchResults.Count > 0;
     }
 
     public override ValueGetter<TValue> GetGetter<TValue>(DataViewSchema.Column column)

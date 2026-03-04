@@ -1,5 +1,6 @@
 using Microsoft.ML;
 using Microsoft.ML.Data;
+using MLNet.Image.Core;
 
 namespace MLNet.ImageInference.Onnx.Segmentation;
 
@@ -13,11 +14,18 @@ internal sealed class SegmentationCursor : DataViewRowCursor
     private readonly DataViewRowCursor _sourceCursor;
     private readonly OnnxImageSegmentationTransformer _transformer;
     private readonly DataViewSchema.Column? _inputCol;
+    private readonly int _batchSize;
 
     private int[] _classIds = [];
     private int _width;
     private int _height;
     private bool _disposed;
+
+    // Lookahead batching state
+    private List<SegmentationMask> _batchResults = new();
+    private int _batchIndex = -1;
+    private bool _inputExhausted;
+    private long _position = -1;
 
     public SegmentationCursor(
         SegmentationDataView parent,
@@ -29,13 +37,14 @@ internal sealed class SegmentationCursor : DataViewRowCursor
         _sourceCursor = sourceCursor;
         _transformer = transformer;
         _inputCol = inputCol;
+        _batchSize = transformer.Options.BatchSize;
     }
 
     public override DataViewSchema Schema => _parent.Schema;
 
-    public override long Position => _sourceCursor.Position;
+    public override long Position => _position;
 
-    public override long Batch => _sourceCursor.Batch;
+    public override long Batch => 0;
 
     public override bool IsColumnActive(DataViewSchema.Column column)
     {
@@ -48,28 +57,62 @@ internal sealed class SegmentationCursor : DataViewRowCursor
 
     public override bool MoveNext()
     {
-        if (!_sourceCursor.MoveNext())
-            return false;
+        _batchIndex++;
 
-        if (_inputCol.HasValue)
+        if (_batchResults.Count == 0 || _batchIndex >= _batchResults.Count)
         {
-            MLImage image = null!;
-            var getter = _sourceCursor.GetGetter<MLImage>(_inputCol.Value);
-            getter(ref image);
+            if (_inputExhausted)
+                return false;
+            if (!FillNextBatch())
+                return false;
+        }
 
-            var mask = _transformer.Segment(image);
-            _classIds = mask.ClassIds;
-            _width = mask.Width;
-            _height = mask.Height;
-        }
-        else
-        {
-            _classIds = [];
-            _width = 0;
-            _height = 0;
-        }
+        var mask = _batchResults[_batchIndex];
+        _classIds = mask.ClassIds;
+        _width = mask.Width;
+        _height = mask.Height;
+        _position++;
 
         return true;
+    }
+
+    private bool FillNextBatch()
+    {
+        _batchResults.Clear();
+        _batchIndex = 0;
+
+        var images = new List<MLImage>();
+
+        for (int i = 0; i < _batchSize; i++)
+        {
+            if (!_sourceCursor.MoveNext())
+            {
+                _inputExhausted = true;
+                break;
+            }
+
+            if (_inputCol.HasValue)
+            {
+                MLImage image = null!;
+                var getter = _sourceCursor.GetGetter<MLImage>(_inputCol.Value);
+                getter(ref image);
+                images.Add(image);
+            }
+            else
+            {
+                // No input column — produce empty results for this row
+                _batchResults.Add(new SegmentationMask());
+            }
+        }
+
+        if (images.Count > 0)
+        {
+            var batchResults = _transformer.SegmentBatch(images);
+            for (int i = 0; i < batchResults.Length; i++)
+                _batchResults.Add(batchResults[i]);
+        }
+
+        return _batchResults.Count > 0;
     }
 
     public override ValueGetter<TValue> GetGetter<TValue>(DataViewSchema.Column column)

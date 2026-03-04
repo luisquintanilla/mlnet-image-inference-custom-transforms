@@ -17,6 +17,14 @@ public static class ModelMetadataDiscovery
         public required long[][] InputShapes { get; init; }
         public required string[] OutputNames { get; init; }
         public required long[][] OutputShapes { get; init; }
+
+        /// <summary>
+        /// Gets whether the model's first input dimension is dynamic (supports batch > 1).
+        /// A dimension value of -1 indicates a dynamic axis.
+        /// </summary>
+        public bool IsBatchDynamic => InputShapes.Length > 0
+            && InputShapes[0].Length > 0
+            && InputShapes[0][0] == -1;
     }
 
     /// <summary>

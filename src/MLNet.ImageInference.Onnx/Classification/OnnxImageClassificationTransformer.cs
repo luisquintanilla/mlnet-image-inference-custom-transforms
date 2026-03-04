@@ -72,6 +72,86 @@ public sealed class OnnxImageClassificationTransformer : ITransformer, IDisposab
         return predictions;
     }
 
+    /// <summary>
+    /// Classifies a batch of images. Uses true tensor batching if the model supports dynamic batch,
+    /// otherwise loops individual inference calls.
+    /// </summary>
+    public (string Label, float Probability)[][] ClassifyBatch(IReadOnlyList<MLImage> images)
+    {
+        if (images == null || images.Count == 0)
+            return Array.Empty<(string, float)[]>();
+
+        if (_metadata.IsBatchDynamic)
+        {
+            return ClassifyBatchDynamic(images);
+        }
+        else
+        {
+            // Fixed batch model — loop individual calls
+            var results = new (string Label, float Probability)[images.Count][];
+            for (int i = 0; i < images.Count; i++)
+            {
+                results[i] = Classify(images[i]);
+            }
+            return results;
+        }
+    }
+
+    private (string Label, float Probability)[][] ClassifyBatchDynamic(IReadOnlyList<MLImage> images)
+    {
+        int n = images.Count;
+        int height = _options.PreprocessorConfig.ImageSize.Height;
+        int width = _options.PreprocessorConfig.ImageSize.Width;
+
+        // Preprocess all images into a contiguous [N, 3, H, W] float array
+        var batchTensor = HuggingFaceImagePreprocessor.PreprocessBatch(images, _options.PreprocessorConfig);
+
+        // Create ONNX input tensor [N, 3, H, W]
+        var inputTensor = new DenseTensor<float>(batchTensor, [n, 3, height, width]);
+        var inputs = new List<NamedOnnxValue>
+        {
+            NamedOnnxValue.CreateFromTensor(_metadata.InputNames[0], inputTensor)
+        };
+
+        // Run inference once for the entire batch
+        using var results = _sessionPool.Session.Run(inputs);
+        var output = results.First().AsEnumerable<float>().ToArray();
+
+        int numClasses = output.Length / n;
+        var batchResults = new (string Label, float Probability)[n][];
+
+        for (int i = 0; i < n; i++)
+        {
+            // Extract logits for this image
+            var logits = output.AsSpan(i * numClasses, numClasses);
+            var probabilities = new float[numClasses];
+            TensorPrimitives.SoftMax(logits, probabilities);
+
+            // Build predictions
+            var predictions = new (string Label, float Probability)[numClasses];
+            for (int j = 0; j < numClasses; j++)
+            {
+                string label = _options.Labels is not null && j < _options.Labels.Length
+                    ? _options.Labels[j]
+                    : j.ToString();
+                predictions[j] = (label, probabilities[j]);
+            }
+
+            // Sort by probability descending
+            Array.Sort(predictions, (a, b) => b.Probability.CompareTo(a.Probability));
+
+            // Apply TopK if specified
+            if (_options.TopK.HasValue && _options.TopK.Value < predictions.Length)
+            {
+                predictions = predictions[.._options.TopK.Value];
+            }
+
+            batchResults[i] = predictions;
+        }
+
+        return batchResults;
+    }
+
     internal OnnxImageClassificationOptions Options => _options;
 
     public IDataView Transform(IDataView input)
