@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <PackageId>MLNet.Image.Tokenizers</PackageId>
+    <Description>CLIP-specific tokenizer extensions for Microsoft.ML.Tokenizers. Provides ClipTokenizer with CLIP-specific preprocessing (lowercase, SOT/EOT special tokens, 77-token context length) on top of BpeTokenizer.</Description>
+    <PackageTags>tokenizer;clip;bpe;image;vision;ml.net</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.ML.Tokenizers" Version="2.0.0" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,34 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for MinVer
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --no-restore -c Release
+
+      - name: Pack
+        run: dotnet pack --no-build -c Release --output ./artifacts
+
+      - name: Publish to GitHub Packages
+        run: dotnet nuget push ./artifacts/*.nupkg --source "https://nuget.pkg.github.com/luisquintanilla/index.json" --api-key ${{ secrets.GITHUB_TOKEN }}

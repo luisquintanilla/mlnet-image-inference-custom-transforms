@@ -1,0 +1,17 @@
+{
+  "name": "ML.NET Image Custom Transforms",
+  "image": "mcr.microsoft.com/devcontainers/dotnet:10.0",
+  "features": {
+    "ghcr.io/devcontainers/features/python:1": {
+      "version": "3.12"
+    }
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-dotnettools.csdevkit"
+      ]
+    }
+  },
+  "postCreateCommand": "bash .devcontainer/post-create.sh"
+}

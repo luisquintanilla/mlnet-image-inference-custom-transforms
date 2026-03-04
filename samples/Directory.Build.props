@@ -1,0 +1,16 @@
+<Project>
+
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <!-- GPU auto-detection: if CUDA_PATH is set, use GPU runtime -->
+  <PropertyGroup Condition="'$(UseGpuRuntime)' == '' AND '$(CUDA_PATH)' != ''">
+    <UseGpuRuntime>true</UseGpuRuntime>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(UseGpuRuntime)' == 'true'">
+    <PackageReference Include="Microsoft.ML.OnnxRuntime.Gpu" Version="1.24.2" />
+  </ItemGroup>
+
+</Project>

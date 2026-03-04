@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <PackageId>MLNet.ImageInference.Onnx</PackageId>
+    <Description>Custom ML.NET transforms for image inference tasks (classification, embeddings, detection, segmentation) backed by local ONNX models with HuggingFace compatibility.</Description>
+    <PackageTags>image;classification;embeddings;detection;segmentation;onnx;ml.net;huggingface</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MLNet.Image.Core\MLNet.Image.Core.csproj" />
+    <ProjectReference Include="..\MLNet.Image.Tokenizers\MLNet.Image.Tokenizers.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.ML" Version="5.0.0-preview.1.25125.4" />
+    <PackageReference Include="Microsoft.ML.OnnxRuntime.Managed" Version="1.22.0" />
+    <PackageReference Include="Microsoft.Extensions.AI.Abstractions" Version="9.5.0" />
+  </ItemGroup>
+
+</Project>

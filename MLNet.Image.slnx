@@ -1,0 +1,16 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/MLNet.Image.Core/MLNet.Image.Core.csproj" />
+    <Project Path="src/MLNet.Image.Tokenizers/MLNet.Image.Tokenizers.csproj" />
+    <Project Path="src/MLNet.ImageInference.Onnx/MLNet.ImageInference.Onnx.csproj" />
+    <Project Path="src/MLNet.ImageGeneration.OnnxGenAI/MLNet.ImageGeneration.OnnxGenAI.csproj" />
+  </Folder>
+  <Folder Name="/samples/">
+    <Project Path="samples/ImageClassification/ImageClassification.csproj" />
+    <Project Path="samples/ImageEmbeddings/ImageEmbeddings.csproj" />
+    <Project Path="samples/TextToImage/TextToImage.csproj" />
+    <Project Path="samples/ObjectDetection/ObjectDetection.csproj" />
+    <Project Path="samples/ImageSegmentation/ImageSegmentation.csproj" />
+    <Project Path="samples/ZeroShotClassification/ZeroShotClassification.csproj" />
+  </Folder>
+</Solution>

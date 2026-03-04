@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <PackageId>MLNet.ImageGeneration.OnnxGenAI</PackageId>
+    <Description>Custom ML.NET transforms for text-to-image generation (Stable Diffusion) backed by ONNX models. Implements experimental MEAI IImageGenerator.</Description>
+    <PackageTags>image-generation;stable-diffusion;onnx;ml.net;text-to-image</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MLNet.Image.Core\MLNet.Image.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.ML" Version="5.0.0-preview.1.25125.4" />
+    <PackageReference Include="Microsoft.Extensions.AI.Abstractions" Version="9.5.0" />
+    <!-- TODO: Add Microsoft.ML.OnnxRuntimeGenAI when implementing generation transforms -->
+  </ItemGroup>
+
+</Project>
