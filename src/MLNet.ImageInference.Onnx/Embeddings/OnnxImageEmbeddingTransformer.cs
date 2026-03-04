@@ -17,7 +17,7 @@ public sealed class OnnxImageEmbeddingTransformer : ITransformer, IDisposable
     private readonly OnnxSessionPool _sessionPool;
     private readonly ModelMetadataDiscovery.ModelMetadata _metadata;
 
-    public bool IsRowToRowMapper => false;
+    public bool IsRowToRowMapper => true;
 
     /// <summary>
     /// Dimension of the output embedding vector.
@@ -129,23 +129,26 @@ public sealed class OnnxImageEmbeddingTransformer : ITransformer, IDisposable
         return result;
     }
 
+    internal OnnxImageEmbeddingOptions Options => _options;
+
     public IDataView Transform(IDataView input)
     {
-        throw new NotImplementedException(
-            "Full IDataView Transform is under development. " +
-            "Use GenerateEmbedding()/GenerateEmbeddings() for direct usage.");
+        return new EmbeddingDataView(input, this);
     }
 
     public DataViewSchema GetOutputSchema(DataViewSchema inputSchema)
     {
         var builder = new DataViewSchema.Builder();
+        for (int i = 0; i < inputSchema.Count; i++)
+            builder.AddColumn(inputSchema[i].Name, inputSchema[i].Type, inputSchema[i].Annotations);
         builder.AddColumn(_options.EmbeddingColumnName,
             new VectorDataViewType(NumberDataViewType.Single, EmbeddingDimension));
         return builder.ToSchema();
     }
 
     public IRowToRowMapper GetRowToRowMapper(DataViewSchema inputSchema)
-        => throw new InvalidOperationException("This transformer does not support row-to-row mapping.");
+        => throw new InvalidOperationException(
+            "Use Transform() to get an IDataView. Direct IRowToRowMapper is not supported.");
 
     void ICanSaveModel.Save(ModelSaveContext ctx)
         => throw new NotSupportedException("Use transformer-specific save/load instead of mlContext.Model.Save().");
