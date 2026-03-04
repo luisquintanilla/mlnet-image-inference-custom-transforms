@@ -51,3 +51,7 @@ Thumbs.db
 .DS_Store
 
 artifacts/
+
+# Downloaded models (large binary files)
+models/
+!models/.gitkeep
