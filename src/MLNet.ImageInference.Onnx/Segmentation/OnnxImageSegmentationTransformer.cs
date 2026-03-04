@@ -42,24 +42,15 @@ public sealed class OnnxImageSegmentationTransformer : ITransformer, IDisposable
 
         // Run inference
         using var results = _sessionPool.Session.Run(inputs);
-        var output = results.First().AsEnumerable<float>().ToArray();
+        var outputTensor = results.First().AsTensor<float>();
+        var output = outputTensor.ToArray();
 
-        // Determine output shape: [1, numClasses, outH, outW]
-        var outputShape = _metadata.OutputShapes[0];
-        int numClasses = (int)outputShape[1];
-        int outH = outputShape.Length > 2 ? (int)outputShape[2] : height;
-        int outW = outputShape.Length > 3 ? (int)outputShape[3] : width;
-
-        // If output shape has dynamic dimensions, infer from output length
-        if (outH <= 0 || outW <= 0)
-        {
-            outH = height;
-            outW = width;
-        }
-        if (numClasses <= 0)
-        {
-            numClasses = output.Length / (outH * outW);
-        }
+        // Get actual output shape from the result tensor: [1, numClasses, outH, outW]
+        // This is reliable even when ONNX metadata reports -1 for dynamic axes.
+        var actualDims = outputTensor.Dimensions;
+        int numClasses = actualDims[1];
+        int outH = actualDims[2];
+        int outW = actualDims[3];
 
         // Apply argmax post-processing with optional resize to original dimensions
         int? originalWidth = _options.ResizeToOriginal ? image.Width : null;
