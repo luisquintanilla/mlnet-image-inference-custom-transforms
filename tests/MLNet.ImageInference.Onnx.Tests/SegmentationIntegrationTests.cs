@@ -27,7 +27,7 @@ public class SegmentationIntegrationTests : IDisposable
             d.Dispose();
     }
 
-    [Fact]
+    [SkippableFact]
     public void ModelMetadata_HasExpectedInput()
     {
         Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");
@@ -47,7 +47,7 @@ public class SegmentationIntegrationTests : IDisposable
         Assert.Equal(4, meta.OutputShapes[0].Length);
     }
 
-    [Fact]
+    [SkippableFact]
     public void Segment_ReturnsValidSegmentationMask()
     {
         Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");
@@ -82,7 +82,7 @@ public class SegmentationIntegrationTests : IDisposable
         }
     }
 
-    [Fact]
+    [SkippableFact]
     public void Segment_GetClassAt_ReturnsValidClassIds()
     {
         Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");
@@ -112,7 +112,7 @@ public class SegmentationIntegrationTests : IDisposable
         }
     }
 
-    [Fact]
+    [SkippableFact]
     public void Segment_WithoutResize_ReturnsModelNativeResolution()
     {
         Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");
@@ -136,7 +136,7 @@ public class SegmentationIntegrationTests : IDisposable
         Assert.Equal(128 * 128, mask.ClassIds.Length);
     }
 
-    [Fact]
+    [SkippableFact]
     public void Transform_IDataView_ProducesOutputColumns()
     {
         Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");

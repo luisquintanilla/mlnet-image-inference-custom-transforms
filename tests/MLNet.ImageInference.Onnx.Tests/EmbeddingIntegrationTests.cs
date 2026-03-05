@@ -33,7 +33,7 @@ public class EmbeddingIntegrationTests : IDisposable
         Normalize = true
     };
 
-    [Fact]
+    [SkippableFact]
     public void EmbeddingDimension_Is512()
     {
         Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");
@@ -44,7 +44,7 @@ public class EmbeddingIntegrationTests : IDisposable
         Assert.Equal(512, transformer.EmbeddingDimension);
     }
 
-    [Fact]
+    [SkippableFact]
     public void GenerateEmbedding_ReturnsValidVector()
     {
         Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");
@@ -67,7 +67,7 @@ public class EmbeddingIntegrationTests : IDisposable
         Assert.InRange(norm, 0.99f, 1.01f);
     }
 
-    [Fact]
+    [SkippableFact]
     public void DifferentImages_ProduceDifferentEmbeddings()
     {
         Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");
@@ -90,7 +90,7 @@ public class EmbeddingIntegrationTests : IDisposable
         Assert.True(dot < 0.999f, $"Embeddings are too similar: cosine={dot}");
     }
 
-    [Fact]
+    [SkippableFact]
     public async Task MEAIGenerator_GenerateAsync_ReturnsEmbeddings()
     {
         Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");
@@ -114,7 +114,7 @@ public class EmbeddingIntegrationTests : IDisposable
         Assert.Equal("clip-vit-base-patch32", generator.Metadata.DefaultModelId);
     }
 
-    [Fact]
+    [SkippableFact]
     public void Transform_IDataView_ProducesEmbeddingColumn()
     {
         Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");

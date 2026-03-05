@@ -38,7 +38,7 @@ public class DeepLabV3IntegrationTests : IDisposable
             d.Dispose();
     }
 
-    [Fact]
+    [SkippableFact]
     public void ModelMetadata_HasExpectedInput()
     {
         Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");
@@ -60,7 +60,7 @@ public class DeepLabV3IntegrationTests : IDisposable
         Assert.Equal(4, meta.OutputShapes[logitsIdx].Length);
     }
 
-    [Fact]
+    [SkippableFact]
     public void Segment_ReturnsValidSegmentationMask()
     {
         Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");
@@ -94,7 +94,7 @@ public class DeepLabV3IntegrationTests : IDisposable
         }
     }
 
-    [Fact]
+    [SkippableFact]
     public void Segment_GetClassAt_ReturnsValidClassIds()
     {
         Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");
@@ -124,7 +124,7 @@ public class DeepLabV3IntegrationTests : IDisposable
         }
     }
 
-    [Fact]
+    [SkippableFact]
     public void Segment_MaskDimensions_MatchExpected()
     {
         Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");
@@ -152,7 +152,7 @@ public class DeepLabV3IntegrationTests : IDisposable
         Assert.Equal(ModelInputSize, mask.Height);
     }
 
-    [Fact]
+    [SkippableFact]
     public void Transform_IDataView_ProducesOutputColumns()
     {
         Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");

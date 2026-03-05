@@ -10,6 +10,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="MLNet.ImageInference.Onnx.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\MLNet.Image.Core\MLNet.Image.Core.csproj" />
   </ItemGroup>
 

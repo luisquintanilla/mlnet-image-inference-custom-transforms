@@ -26,7 +26,7 @@ public class DetectionIntegrationTests : IDisposable
             d.Dispose();
     }
 
-    [Fact]
+    [SkippableFact]
     public void ModelMetadata_HasExpectedInputOutput()
     {
         Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");
@@ -53,7 +53,7 @@ public class DetectionIntegrationTests : IDisposable
         Assert.Equal(8400, meta.OutputShapes[0][2]);
     }
 
-    [Fact]
+    [SkippableFact]
     public void Detect_WithSyntheticImage_ReturnsBoundingBoxArray()
     {
         Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");
@@ -88,7 +88,7 @@ public class DetectionIntegrationTests : IDisposable
         }
     }
 
-    [Fact]
+    [SkippableFact]
     public void Detect_LowConfidenceReturnsMoreBoxes()
     {
         Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");
@@ -123,7 +123,7 @@ public class DetectionIntegrationTests : IDisposable
             $"Low confidence ({lowConfResults.Length}) should return >= boxes than high confidence ({highConfResults.Length})");
     }
 
-    [Fact]
+    [SkippableFact]
     public void Transform_IDataView_ProducesOutputColumns()
     {
         Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");

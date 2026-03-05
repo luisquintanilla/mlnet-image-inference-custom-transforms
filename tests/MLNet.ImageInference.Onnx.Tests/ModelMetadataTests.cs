@@ -11,7 +11,7 @@ public class ModelMetadataTests
     private const string MobileNetModelPath = "models/mobilenet/model.onnx";
     private const string SqueezeNetModelPath = "models/squeezenet/model.onnx";
 
-    [Fact]
+    [SkippableFact]
     public void IsBatchDynamic_WithDynamicModel_ReturnsTrue()
     {
         Skip.Unless(File.Exists(MobileNetModelPath), "Model file not available - run scripts/download-test-models.ps1");
@@ -21,7 +21,7 @@ public class ModelMetadataTests
         Assert.True(meta.IsBatchDynamic);
     }
 
-    [Fact]
+    [SkippableFact]
     public void IsBatchDynamic_WithFixedModel_ReturnsFalse()
     {
         Skip.Unless(File.Exists(SqueezeNetModelPath), "Model file not available - run scripts/download-test-models.ps1");

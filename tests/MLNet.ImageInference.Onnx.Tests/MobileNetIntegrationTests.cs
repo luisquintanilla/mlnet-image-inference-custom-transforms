@@ -26,7 +26,7 @@ public class MobileNetIntegrationTests : IDisposable
             d.Dispose();
     }
 
-    [Fact]
+    [SkippableFact]
     public void ModelMetadata_HasExpectedInputOutput()
     {
         Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");
@@ -49,7 +49,7 @@ public class MobileNetIntegrationTests : IDisposable
         Assert.Equal(1001, meta.OutputShapes[0][1]);
     }
 
-    [Fact]
+    [SkippableFact]
     public void Classify_WithRealModel_ReturnsValidProbabilities()
     {
         Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");
@@ -86,7 +86,7 @@ public class MobileNetIntegrationTests : IDisposable
             Assert.True(results[i].Probability <= results[i - 1].Probability);
     }
 
-    [Fact]
+    [SkippableFact]
     public void Classify_AllClasses_Returns1001Entries()
     {
         Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");
@@ -112,7 +112,7 @@ public class MobileNetIntegrationTests : IDisposable
         Assert.InRange(sum, 0.99f, 1.01f);
     }
 
-    [Fact]
+    [SkippableFact]
     public void Classify_TopK_ReturnsExactCount()
     {
         Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");
@@ -134,7 +134,7 @@ public class MobileNetIntegrationTests : IDisposable
         Assert.Equal(5, results.Length);
     }
 
-    [Fact]
+    [SkippableFact]
     public void Classify_DifferentFromSqueezeNet_PipelineGeneralizes()
     {
         Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");

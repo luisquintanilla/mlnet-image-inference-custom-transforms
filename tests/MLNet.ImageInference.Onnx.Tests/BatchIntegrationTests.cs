@@ -30,7 +30,7 @@ public class BatchIntegrationTests : IDisposable
 
     // --- Classification: Fixed-batch model (SqueezeNet) ---
 
-    [Fact]
+    [SkippableFact]
     public void ClassifyBatch_FixedModel_MatchesSingleResults()
     {
         Skip.Unless(File.Exists(SqueezeNetModelPath), "Model file not available - run scripts/download-test-models.ps1");
@@ -69,7 +69,7 @@ public class BatchIntegrationTests : IDisposable
 
     // --- Classification: Dynamic-batch model (MobileNet) ---
 
-    [Fact]
+    [SkippableFact]
     public void ClassifyBatch_DynamicModel_MatchesSingleResults()
     {
         Skip.Unless(File.Exists(MobileNetModelPath), "Model file not available - run scripts/download-test-models.ps1");
@@ -104,7 +104,7 @@ public class BatchIntegrationTests : IDisposable
 
     // --- Classification: Batch of 1 ---
 
-    [Fact]
+    [SkippableFact]
     public void ClassifyBatch_SingleImage_MatchesSingle()
     {
         Skip.Unless(File.Exists(MobileNetModelPath), "Model file not available - run scripts/download-test-models.ps1");
@@ -130,7 +130,7 @@ public class BatchIntegrationTests : IDisposable
 
     // --- Embedding: Dynamic-batch model (CLIP) ---
 
-    [Fact]
+    [SkippableFact]
     public void EmbeddingBatch_DynamicModel_MatchesSingleResults()
     {
         Skip.Unless(File.Exists(ClipVisionModelPath), "Model file not available - run scripts/download-test-models.ps1");
@@ -165,7 +165,7 @@ public class BatchIntegrationTests : IDisposable
 
     // --- Embedding: Batch of 1 ---
 
-    [Fact]
+    [SkippableFact]
     public void EmbeddingBatch_SingleImage_MatchesSingle()
     {
         Skip.Unless(File.Exists(ClipVisionModelPath), "Model file not available - run scripts/download-test-models.ps1");
@@ -192,7 +192,7 @@ public class BatchIntegrationTests : IDisposable
 
     // --- Empty input ---
 
-    [Fact]
+    [SkippableFact]
     public void ClassifyBatch_EmptyInput_ReturnsEmpty()
     {
         Skip.Unless(File.Exists(SqueezeNetModelPath), "Model file not available - run scripts/download-test-models.ps1");
@@ -214,7 +214,7 @@ public class BatchIntegrationTests : IDisposable
 
     // --- IsBatchDynamic property ---
 
-    [Fact]
+    [SkippableFact]
     public void IsBatchDynamic_CorrectForAllModels()
     {
         Skip.Unless(

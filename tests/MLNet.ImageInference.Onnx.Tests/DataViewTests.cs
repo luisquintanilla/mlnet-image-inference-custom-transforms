@@ -26,7 +26,7 @@ public class DataViewTests : IDisposable
             d.Dispose();
     }
 
-    [Fact]
+    [SkippableFact]
     public void Classification_Transform_SchemaHasOutputColumns()
     {
         Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");
@@ -59,7 +59,7 @@ public class DataViewTests : IDisposable
         Assert.NotNull(result.Schema.GetColumnOrNull("Image"));
     }
 
-    [Fact]
+    [SkippableFact]
     public void Classification_Transform_CanShuffleIsFalse()
     {
         Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");
@@ -80,7 +80,7 @@ public class DataViewTests : IDisposable
         Assert.False(result.CanShuffle);
     }
 
-    [Fact]
+    [SkippableFact]
     public void Classification_Transform_GetRowCountReturnsNull()
     {
         Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");
@@ -101,7 +101,7 @@ public class DataViewTests : IDisposable
         Assert.Null(result.GetRowCount());
     }
 
-    [Fact]
+    [SkippableFact]
     public void Classification_Transform_GetRowCursorSetReturnsSingleCursor()
     {
         Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");
@@ -124,7 +124,7 @@ public class DataViewTests : IDisposable
         cursors[0].Dispose();
     }
 
-    [Fact]
+    [SkippableFact]
     public void Classification_Cursor_IteratesRows()
     {
         Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");
@@ -171,7 +171,7 @@ public class DataViewTests : IDisposable
         Assert.Equal(2, rowCount);
     }
 
-    [Fact]
+    [SkippableFact]
     public void Classification_Cursor_SourceColumnsPassthrough()
     {
         Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");
@@ -202,7 +202,7 @@ public class DataViewTests : IDisposable
         Assert.NotNull(retrieved);
     }
 
-    [Fact]
+    [SkippableFact]
     public void Classification_GetOutputSchema_MatchesTransformSchema()
     {
         Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");
@@ -230,7 +230,7 @@ public class DataViewTests : IDisposable
         }
     }
 
-    [Fact]
+    [SkippableFact]
     public void Classification_Cursor_PositionAdvances()
     {
         Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");
@@ -263,7 +263,7 @@ public class DataViewTests : IDisposable
         Assert.False(cursor.MoveNext());
     }
 
-    [Fact]
+    [SkippableFact]
     public void Classification_CustomColumnNames_ReflectedInSchema()
     {
         Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");

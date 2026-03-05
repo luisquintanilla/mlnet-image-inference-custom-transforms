@@ -34,7 +34,7 @@ public class DINOv2IntegrationTests : IDisposable
         Normalize = true
     };
 
-    [Fact]
+    [SkippableFact]
     public void ModelMetadata_HasExpectedInputOutput()
     {
         Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");
@@ -57,7 +57,7 @@ public class DINOv2IntegrationTests : IDisposable
         Assert.Equal(384, meta.OutputShapes[0][1]);
     }
 
-    [Fact]
+    [SkippableFact]
     public void GenerateEmbedding_Returns384DimVector()
     {
         Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");
@@ -73,7 +73,7 @@ public class DINOv2IntegrationTests : IDisposable
         Assert.All(embedding, v => Assert.True(float.IsFinite(v), $"Non-finite value: {v}"));
     }
 
-    [Fact]
+    [SkippableFact]
     public void Embedding_IsNormalized()
     {
         Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");
@@ -90,7 +90,7 @@ public class DINOv2IntegrationTests : IDisposable
         Assert.InRange(norm, 0.9f, 1.1f);
     }
 
-    [Fact]
+    [SkippableFact]
     public void DifferentImages_ProduceDifferentEmbeddings()
     {
         Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");
@@ -113,7 +113,7 @@ public class DINOv2IntegrationTests : IDisposable
         Assert.True(dot < 0.999f, $"Embeddings are too similar: cosine={dot}");
     }
 
-    [Fact]
+    [SkippableFact]
     public async Task MEAIGenerator_Works()
     {
         Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");
@@ -137,7 +137,7 @@ public class DINOv2IntegrationTests : IDisposable
         Assert.Equal("dinov2-vits14", generator.Metadata.DefaultModelId);
     }
 
-    [Fact]
+    [SkippableFact]
     public void Transform_IDataView_ProducesEmbeddingColumn()
     {
         Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");

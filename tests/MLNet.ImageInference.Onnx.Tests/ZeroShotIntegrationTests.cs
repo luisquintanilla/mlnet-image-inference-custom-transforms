@@ -60,7 +60,7 @@ public class ZeroShotIntegrationTests : IDisposable
         return transformer;
     }
 
-    [Fact]
+    [SkippableFact]
     public void BothModels_LoadCorrectly()
     {
         Skip.Unless(ModelsExist, "Model files not available - run scripts/download-test-models.ps1");
@@ -71,7 +71,7 @@ public class ZeroShotIntegrationTests : IDisposable
         Assert.NotNull(transformer);
     }
 
-    [Fact]
+    [SkippableFact]
     public void Classify_ReturnsProbabilitiesThatSumToOne()
     {
         Skip.Unless(ModelsExist, "Model files not available - run scripts/download-test-models.ps1");
@@ -97,7 +97,7 @@ public class ZeroShotIntegrationTests : IDisposable
         Assert.InRange(sum, 0.99f, 1.01f);
     }
 
-    [Fact]
+    [SkippableFact]
     public void Classify_ResultsAreSortedDescending()
     {
         Skip.Unless(ModelsExist, "Model files not available - run scripts/download-test-models.ps1");
@@ -116,7 +116,7 @@ public class ZeroShotIntegrationTests : IDisposable
         }
     }
 
-    [Fact]
+    [SkippableFact]
     public void Classify_TopK_ReturnsRequestedCount()
     {
         Skip.Unless(ModelsExist, "Model files not available - run scripts/download-test-models.ps1");

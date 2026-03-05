@@ -26,7 +26,7 @@ public class ResNet50IntegrationTests : IDisposable
             d.Dispose();
     }
 
-    [Fact]
+    [SkippableFact]
     public void ModelMetadata_HasExpectedInputOutput()
     {
         Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");
@@ -50,7 +50,7 @@ public class ResNet50IntegrationTests : IDisposable
         Assert.Equal(1000, meta.OutputShapes[0][1]);
     }
 
-    [Fact]
+    [SkippableFact]
     public void Classify_ReturnsValidProbabilities()
     {
         Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");
@@ -87,7 +87,7 @@ public class ResNet50IntegrationTests : IDisposable
             Assert.True(results[i].Probability <= results[i - 1].Probability);
     }
 
-    [Fact]
+    [SkippableFact]
     public void Classify_AllClasses_Returns1000Entries()
     {
         Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");
@@ -115,7 +115,7 @@ public class ResNet50IntegrationTests : IDisposable
         Assert.InRange(sum, 0.99f, 1.01f);
     }
 
-    [Fact]
+    [SkippableFact]
     public void Classify_TopK_ReturnsExactCount()
     {
         Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");
@@ -137,7 +137,7 @@ public class ResNet50IntegrationTests : IDisposable
         Assert.Equal(5, results.Length);
     }
 
-    [Fact]
+    [SkippableFact]
     public void Classify_DifferentFromSqueezeNet()
     {
         Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");

@@ -29,7 +29,7 @@ public class ClassificationIntegrationTests : IDisposable
             d.Dispose();
     }
 
-    [Fact]
+    [SkippableFact]
     public void ModelMetadata_HasExpectedInputOutput()
     {
         Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");
@@ -49,7 +49,7 @@ public class ClassificationIntegrationTests : IDisposable
         Assert.Equal(224, meta.InputShapes[0][3]);
     }
 
-    [Fact]
+    [SkippableFact]
     public void Classify_WithRealModel_ReturnsValidProbabilities()
     {
         Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");
@@ -89,7 +89,7 @@ public class ClassificationIntegrationTests : IDisposable
             Assert.True(results[i].Probability <= results[i - 1].Probability);
     }
 
-    [Fact]
+    [SkippableFact]
     public void Classify_AllProbabilities_SumToOne()
     {
         Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");
@@ -113,7 +113,7 @@ public class ClassificationIntegrationTests : IDisposable
         Assert.InRange(sum, 0.99f, 1.01f);
     }
 
-    [Fact]
+    [SkippableFact]
     public void Transform_IDataView_ReturnsResults()
     {
         Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");
