@@ -142,4 +142,17 @@ public record PreprocessorConfig
         CropSize = (1024, 1024),
         DoCenterCrop = false
     };
+
+    /// <summary>
+    /// GIT-VQA preset: CLIP normalization, size=480x480.
+    /// Used by microsoft/git-base-textvqa and related GIT VQA models.
+    /// </summary>
+    public static PreprocessorConfig GITVQA => new()
+    {
+        Mean = [0.48145466f, 0.4578275f, 0.40821073f],
+        Std = [0.26862954f, 0.26130258f, 0.27577711f],
+        ImageSize = (480, 480),
+        CropSize = (480, 480),
+        DoCenterCrop = false
+    };
 }

@@ -33,6 +33,7 @@
     <Content Include="..\..\models\git-coco\**" CopyToOutputDirectory="PreserveNewest" LinkBase="models\git-coco" />
     <Content Include="..\..\models\stable-diffusion\**" CopyToOutputDirectory="PreserveNewest" LinkBase="models\stable-diffusion" />
     <Content Include="..\..\models\sam2-tiny\**" CopyToOutputDirectory="PreserveNewest" LinkBase="models\sam2-tiny" />
+    <Content Include="..\..\models\git-base-textvqa\**" CopyToOutputDirectory="PreserveNewest" LinkBase="models\git-base-textvqa" />
   </ItemGroup>
 
 </Project>

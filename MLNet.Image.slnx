@@ -20,5 +20,6 @@
     <Project Path="samples/DepthEstimation/DepthEstimation.csproj" />
     <Project Path="samples/ImageCaptioning/ImageCaptioning.csproj" />
     <Project Path="samples/SegmentAnything/SegmentAnything.csproj" />
+    <Project Path="samples/VisualQuestionAnswering/VisualQuestionAnswering.csproj" />
   </Folder>
 </Solution>

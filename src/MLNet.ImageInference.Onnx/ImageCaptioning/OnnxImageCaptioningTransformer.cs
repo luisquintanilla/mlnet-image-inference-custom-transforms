@@ -67,10 +67,33 @@ public sealed class OnnxImageCaptioningTransformer : ITransformer, IDisposable
         var visualFeatures = EncodeImage(tensor);
 
         // Stage 3: Autoregressive text generation
-        var tokenIds = GenerateTokens(visualFeatures);
+        var tokenIds = GenerateTokens(visualFeatures, initialIds: [_options.BosTokenId]);
 
         // Stage 4: Decode tokens to text
         return _tokenizer.Decode(tokenIds);
+    }
+
+    /// <summary>
+    /// Answer a question about an image (Visual Question Answering).
+    /// The question is tokenized and used as initial decoder input before autoregressive generation.
+    /// Requires a GIT-VQA model (e.g., microsoft/git-base-textvqa).
+    /// </summary>
+    public string AnswerQuestion(MLImage image, string question)
+    {
+        // Stage 1: Preprocess image
+        var tensor = _preprocessor.Preprocess(image);
+
+        // Stage 2: Encode image → visual features
+        var visualFeatures = EncodeImage(tensor);
+
+        // Stage 3: Tokenize question → [CLS] question_tokens [SEP]
+        var questionTokenIds = TokenizeQuestion(question);
+
+        // Stage 4: Autoregressive generation starting after the question
+        var answerTokenIds = GenerateTokens(visualFeatures, initialIds: questionTokenIds);
+
+        // Stage 5: Decode answer tokens to text
+        return _tokenizer.Decode(answerTokenIds);
     }
 
     /// <summary>
@@ -117,19 +140,21 @@ public sealed class OnnxImageCaptioningTransformer : ITransformer, IDisposable
     /// <summary>
     /// Autoregressive greedy decode: generate tokens one at a time until EOS or max length.
     /// </summary>
-    private List<int> GenerateTokens(DenseTensor<float> visualFeatures)
+    /// <param name="visualFeatures">Encoded visual features from the image.</param>
+    /// <param name="initialIds">Initial token IDs (e.g., [CLS] for captioning, or [CLS]+question+[SEP] for VQA).</param>
+    private List<int> GenerateTokens(DenseTensor<float> visualFeatures, int[] initialIds)
     {
         var generatedIds = new List<int>();
-        int currentToken = _options.BosTokenId;
 
         for (int step = 0; step < _options.MaxLength; step++)
         {
-            // Build input_ids tensor: [1, seq_len]
-            int seqLen = step + 1;
+            // Build input_ids tensor: [1, initial_len + generated_len]
+            int seqLen = initialIds.Length + generatedIds.Count;
             var inputIdsTensor = new DenseTensor<long>([1, seqLen]);
-            inputIdsTensor[0, 0] = _options.BosTokenId;
+            for (int i = 0; i < initialIds.Length; i++)
+                inputIdsTensor[0, i] = initialIds[i];
             for (int i = 0; i < generatedIds.Count; i++)
-                inputIdsTensor[0, i + 1] = generatedIds[i];
+                inputIdsTensor[0, initialIds.Length + i] = generatedIds[i];
 
             // Run decoder: input_ids + visual_features → logits
             var inputs = new List<NamedOnnxValue>
@@ -168,6 +193,20 @@ public sealed class OnnxImageCaptioningTransformer : ITransformer, IDisposable
 
     internal OnnxImageCaptioningOptions Options => _options;
     internal ImagePreprocessingTransformer Preprocessor => _preprocessor;
+
+    /// <summary>
+    /// Tokenize a question into [CLS] question_tokens [SEP] format for VQA.
+    /// </summary>
+    private int[] TokenizeQuestion(string question)
+    {
+        var encoded = _tokenizer.EncodeToIds(question, _options.MaxLength - 2, out _, out _);
+        var ids = new int[encoded.Count + 2];
+        ids[0] = _options.BosTokenId; // [CLS]
+        for (int i = 0; i < encoded.Count; i++)
+            ids[i + 1] = encoded[i];
+        ids[encoded.Count + 1] = _options.EosTokenId; // [SEP]
+        return ids;
+    }
 
     public IDataView Transform(IDataView input)
         => new ImageCaptioningDataView(input, this);

@@ -59,8 +59,9 @@ public sealed class OnnxImageCaptioningChatClient : IChatClient
     }
 
     /// <summary>
-    /// Generate a caption for images in the chat messages.
-    /// Extracts the first image from the last user message and returns its caption.
+    /// Generate a caption or answer a question about images in the chat messages.
+    /// If the message contains both image and text, uses VQA mode (answers the question).
+    /// If the message contains only an image, uses captioning mode.
     /// </summary>
     public Task<ChatResponse> GetResponseAsync(
         IEnumerable<ChatMessage> chatMessages,
@@ -69,7 +70,7 @@ public sealed class OnnxImageCaptioningChatClient : IChatClient
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        var image = ExtractImage(chatMessages);
+        var (image, question) = ExtractImageAndQuestion(chatMessages);
         if (image is null)
         {
             return Task.FromResult(new ChatResponse(
@@ -78,9 +79,12 @@ public sealed class OnnxImageCaptioningChatClient : IChatClient
 
         try
         {
-            var caption = _transformer.GenerateCaption(image);
+            string result = question is not null
+                ? _transformer.AnswerQuestion(image, question)
+                : _transformer.GenerateCaption(image);
+
             return Task.FromResult(new ChatResponse(
-                new ChatMessage(ChatRole.Assistant, caption)));
+                new ChatMessage(ChatRole.Assistant, result)));
         }
         finally
         {
@@ -117,10 +121,10 @@ public sealed class OnnxImageCaptioningChatClient : IChatClient
     }
 
     /// <summary>
-    /// Extract the first image from the last user message.
-    /// Supports DataContent with image MIME types.
+    /// Extract the first image and optional question text from the last user message.
+    /// When both image and text are present, the text is used as a VQA question.
     /// </summary>
-    private static MLImage? ExtractImage(IEnumerable<ChatMessage> messages)
+    private static (MLImage? Image, string? Question) ExtractImageAndQuestion(IEnumerable<ChatMessage> messages)
     {
         // Find the last user message
         ChatMessage? userMessage = null;
@@ -131,18 +135,26 @@ public sealed class OnnxImageCaptioningChatClient : IChatClient
         }
 
         if (userMessage?.Contents is null)
-            return null;
+            return (null, null);
 
-        // Find the first image content
+        MLImage? image = null;
+        string? question = null;
+
         foreach (var content in userMessage.Contents)
         {
-            if (content is DataContent dataContent &&
+            if (image is null &&
+                content is DataContent dataContent &&
                 dataContent.MediaType?.StartsWith("image/", StringComparison.OrdinalIgnoreCase) == true)
             {
-                return dataContent.ToMLImage();
+                image = dataContent.ToMLImage();
+            }
+            else if (question is null && content is TextContent textContent &&
+                     !string.IsNullOrWhiteSpace(textContent.Text))
+            {
+                question = textContent.Text;
             }
         }
 
-        return null;
+        return (image, question);
     }
 }
