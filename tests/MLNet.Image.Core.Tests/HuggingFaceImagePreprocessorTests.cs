@@ -6,6 +6,13 @@ namespace MLNet.Image.Core.Tests;
 
 public class HuggingFaceImagePreprocessorTests
 {
+    // Small test config that matches the 4x4 images used in unit tests (no resizing needed)
+    private static readonly PreprocessorConfig TestConfig4x4 = new()
+    {
+        ImageSize = (4, 4),
+        CropSize = (4, 4)
+    };
+
     private static MLImage CreateSolidColorImage(int width, int height, byte r, byte g, byte b)
     {
         // MLImage.CreateFromPixels expects pixel data in the specified format
@@ -24,7 +31,7 @@ public class HuggingFaceImagePreprocessorTests
     public void Preprocess_SolidRed_OutputTensorHasCorrectDimensions()
     {
         using var image = CreateSolidColorImage(4, 4, 255, 0, 0);
-        var config = PreprocessorConfig.ImageNet;
+        var config = TestConfig4x4;
 
         float[] tensor = HuggingFaceImagePreprocessor.Preprocess(image, config);
 
@@ -35,7 +42,7 @@ public class HuggingFaceImagePreprocessorTests
     public void Preprocess_SolidRed_ChannelValuesAreCorrect()
     {
         using var image = CreateSolidColorImage(4, 4, 255, 0, 0);
-        var config = PreprocessorConfig.ImageNet;
+        var config = TestConfig4x4;
 
         float[] tensor = HuggingFaceImagePreprocessor.Preprocess(image, config);
 
@@ -58,7 +65,7 @@ public class HuggingFaceImagePreprocessorTests
     public void Preprocess_SolidRed_AllPixelsInChannelAreUniform()
     {
         using var image = CreateSolidColorImage(4, 4, 255, 0, 0);
-        var config = PreprocessorConfig.ImageNet;
+        var config = TestConfig4x4;
 
         float[] tensor = HuggingFaceImagePreprocessor.Preprocess(image, config);
 
@@ -83,7 +90,7 @@ public class HuggingFaceImagePreprocessorTests
     public void Preprocess_CHWFormat_ChannelsAreSeparated()
     {
         using var image = CreateSolidColorImage(4, 4, 255, 0, 0);
-        var config = PreprocessorConfig.ImageNet;
+        var config = TestConfig4x4;
 
         float[] tensor = HuggingFaceImagePreprocessor.Preprocess(image, config);
 
@@ -100,8 +107,17 @@ public class HuggingFaceImagePreprocessorTests
     {
         using var image = CreateSolidColorImage(4, 4, 128, 64, 32);
 
-        float[] imageNetResult = HuggingFaceImagePreprocessor.Preprocess(image, PreprocessorConfig.ImageNet);
-        float[] clipResult = HuggingFaceImagePreprocessor.Preprocess(image, PreprocessorConfig.CLIP);
+        var imageNetConfig = TestConfig4x4; // same mean/std as ImageNet, but size=4x4
+        var clipConfig = new PreprocessorConfig
+        {
+            Mean = [0.48145466f, 0.4578275f, 0.40821073f],
+            Std = [0.26862954f, 0.26130258f, 0.27577711f],
+            ImageSize = (4, 4),
+            CropSize = (4, 4)
+        };
+
+        float[] imageNetResult = HuggingFaceImagePreprocessor.Preprocess(image, imageNetConfig);
+        float[] clipResult = HuggingFaceImagePreprocessor.Preprocess(image, clipConfig);
 
         // Different configs should produce different normalized values
         Assert.NotEqual(imageNetResult[0], clipResult[0]);
@@ -112,7 +128,7 @@ public class HuggingFaceImagePreprocessorTests
     {
         using var img1 = CreateSolidColorImage(4, 4, 255, 0, 0);
         using var img2 = CreateSolidColorImage(4, 4, 0, 255, 0);
-        var config = new PreprocessorConfig { CropSize = (4, 4) };
+        var config = new PreprocessorConfig { ImageSize = (4, 4), CropSize = (4, 4) };
         var images = new List<MLImage> { img1, img2 };
 
         float[] result = HuggingFaceImagePreprocessor.PreprocessBatch(images, config);
@@ -128,7 +144,7 @@ public class HuggingFaceImagePreprocessorTests
     {
         using var img1 = CreateSolidColorImage(4, 4, 255, 0, 0);
         using var img2 = CreateSolidColorImage(4, 4, 0, 255, 0);
-        var config = new PreprocessorConfig { CropSize = (4, 4) };
+        var config = new PreprocessorConfig { ImageSize = (4, 4), CropSize = (4, 4) };
 
         float[] single1 = HuggingFaceImagePreprocessor.Preprocess(img1, config);
         float[] single2 = HuggingFaceImagePreprocessor.Preprocess(img2, config);
@@ -156,7 +172,7 @@ public class HuggingFaceImagePreprocessorTests
     public void PreprocessBatch_SingleImage_MatchesPreprocess()
     {
         using var image = CreateSolidColorImage(4, 4, 128, 64, 32);
-        var config = new PreprocessorConfig { CropSize = (4, 4) };
+        var config = new PreprocessorConfig { ImageSize = (4, 4), CropSize = (4, 4) };
 
         float[] single = HuggingFaceImagePreprocessor.Preprocess(image, config);
         float[] batch = HuggingFaceImagePreprocessor.PreprocessBatch(new List<MLImage> { image }, config);

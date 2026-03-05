@@ -47,7 +47,8 @@ try
     using var image = transformer.Generate("a cat sitting on a beach at sunset");
     Console.WriteLine($"Generated image: {image.Width}x{image.Height}");
 }
-catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException)
+catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException
+    or Microsoft.ML.OnnxRuntime.OnnxRuntimeException)
 {
     Console.WriteLine($"⚠️  Model not found: {ex.Message}");
     Console.WriteLine("    Download a Stable Diffusion ONNX model first (see instructions below).");
@@ -65,7 +66,8 @@ try
     using var image = await generator.GenerateAsync("a serene mountain landscape at dawn");
     Console.WriteLine($"Generated image: {image.Width}x{image.Height}");
 }
-catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException)
+catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException
+    or Microsoft.ML.OnnxRuntime.OnnxRuntimeException)
 {
     Console.WriteLine($"⚠️  Model not found: {ex.Message}");
     Console.WriteLine("    Download a Stable Diffusion ONNX model first (see instructions below).");

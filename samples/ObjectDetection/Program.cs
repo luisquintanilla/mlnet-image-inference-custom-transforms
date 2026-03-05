@@ -47,7 +47,7 @@ Console.WriteLine();
 var options = new OnnxObjectDetectionOptions
 {
     ModelPath = modelPath,
-    PreprocessorConfig = PreprocessorConfig.ImageNet,
+    PreprocessorConfig = PreprocessorConfig.YOLOv8,
     ConfidenceThreshold = 0.5f,
     IouThreshold = 0.45f
 };
@@ -83,7 +83,7 @@ var pipeline = mlContext.Transforms.OnnxObjectDetection(new OnnxObjectDetectionO
     ModelPath = modelPath,
     InputColumnName = "Image",
     OutputColumnName = "Detections",
-    PreprocessorConfig = PreprocessorConfig.ImageNet,
+    PreprocessorConfig = PreprocessorConfig.YOLOv8,
     ConfidenceThreshold = 0.5f,
     IouThreshold = 0.45f
 });
