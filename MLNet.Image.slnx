@@ -18,5 +18,6 @@
     <Project Path="samples/ImageSegmentation/ImageSegmentation.csproj" />
     <Project Path="samples/ZeroShotClassification/ZeroShotClassification.csproj" />
     <Project Path="samples/DepthEstimation/DepthEstimation.csproj" />
+    <Project Path="samples/ImageCaptioning/ImageCaptioning.csproj" />
   </Folder>
 </Solution>

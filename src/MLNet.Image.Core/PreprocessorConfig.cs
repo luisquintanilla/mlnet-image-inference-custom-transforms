@@ -118,4 +118,17 @@ public record PreprocessorConfig
         CropSize = (512, 512),
         DoCenterCrop = false
     };
+
+    /// <summary>
+    /// GIT (Generative Image-to-text Transformer) preset: CLIP normalization, size=224x224.
+    /// Used by microsoft/git-base-coco and related GIT captioning models.
+    /// </summary>
+    public static PreprocessorConfig GIT => new()
+    {
+        Mean = [0.48145466f, 0.4578275f, 0.40821073f],
+        Std = [0.26862954f, 0.26130258f, 0.27577711f],
+        ImageSize = (224, 224),
+        CropSize = (224, 224),
+        DoCenterCrop = false
+    };
 }

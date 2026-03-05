@@ -30,6 +30,7 @@
     <Content Include="..\..\models\resnet50\**" CopyToOutputDirectory="PreserveNewest" LinkBase="models\resnet50" />
     <Content Include="..\..\models\deeplabv3\**" CopyToOutputDirectory="PreserveNewest" LinkBase="models\deeplabv3" />
     <Content Include="..\..\models\dpt-hybrid\**" CopyToOutputDirectory="PreserveNewest" LinkBase="models\dpt-hybrid" />
+    <Content Include="..\..\models\git-coco\**" CopyToOutputDirectory="PreserveNewest" LinkBase="models\git-coco" />
   </ItemGroup>
 
 </Project>

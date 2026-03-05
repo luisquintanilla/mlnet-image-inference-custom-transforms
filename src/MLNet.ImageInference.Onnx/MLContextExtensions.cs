@@ -4,6 +4,7 @@ using MLNet.ImageInference.Onnx.Classification;
 using MLNet.ImageInference.Onnx.DepthEstimation;
 using MLNet.ImageInference.Onnx.Detection;
 using MLNet.ImageInference.Onnx.Embeddings;
+using MLNet.ImageInference.Onnx.ImageCaptioning;
 using MLNet.ImageInference.Onnx.Segmentation;
 using MLNet.ImageInference.Onnx.ZeroShot;
 
@@ -79,5 +80,16 @@ public static class MLContextExtensions
     {
         ArgumentNullException.ThrowIfNull(options);
         return new OnnxImageDepthEstimationEstimator(options);
+    }
+
+    /// <summary>
+    /// Create an image captioning pipeline: preprocess → vision encoder → autoregressive text decoder → caption.
+    /// </summary>
+    public static OnnxImageCaptioningEstimator OnnxImageCaptioning(
+        this TransformsCatalog catalog,
+        OnnxImageCaptioningOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        return new OnnxImageCaptioningEstimator(options);
     }
 }
