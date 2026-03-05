@@ -8,10 +8,10 @@ Custom ML.NET transforms for image inference and generation backed by local ONNX
 
 | Package | Description | Status |
 |---|---|---|
-| **MLNet.Image.Core** | Image preprocessing, `MLImage↔DataContent` conversion, result types (`BoundingBox`, `SegmentationMask`) | ✅ |
+| **MLNet.Image.Core** | Image preprocessing, `MLImage↔DataContent` conversion, result types (`BoundingBox`, `SegmentationMask`, `DepthMap`) | ✅ |
 | **MLNet.Image.Tokenizers** | CLIP tokenizer extending `Microsoft.ML.Tokenizers` | ✅ |
-| **MLNet.ImageInference.Onnx** | ML.NET transforms: classification, embeddings, detection, segmentation | ✅ |
-| **MLNet.ImageGeneration.OnnxGenAI** | Text-to-image generation via OnnxRuntime GenAI | 🚧 Planned |
+| **MLNet.ImageInference.Onnx** | ML.NET transforms: classification, detection, segmentation, embeddings, zero-shot, depth estimation | ✅ |
+| **MLNet.ImageGeneration.OnnxGenAI** | Text-to-image generation (Stable Diffusion via OnnxRuntime) | ✅ |
 
 ## Quick Start
 
@@ -78,24 +78,29 @@ float[] imageEmbedding = transformer.GenerateEmbedding(image);
 
 | Task | Status | Package | MEAI Interface |
 |---|---|---|---|
-| Image Classification | ✅ Implemented | `MLNet.ImageInference.Onnx` | — |
-| Image Embeddings | ✅ Implemented | `MLNet.ImageInference.Onnx` | `IEmbeddingGenerator<MLImage, Embedding<float>>` |
-| Object Detection | ✅ Implemented | `MLNet.ImageInference.Onnx` | — |
-| Image Segmentation | ✅ Implemented | `MLNet.ImageInference.Onnx` | — |
-| Zero-Shot Classification | ✅ Implemented | `MLNet.ImageInference.Onnx` | — |
-| Text-to-Image Generation | 📋 Planned | `MLNet.ImageGeneration.OnnxGenAI` | `IImageGenerator` (experimental) |
+| Image Classification | ✅ | `MLNet.ImageInference.Onnx` | — |
+| Object Detection | ✅ | `MLNet.ImageInference.Onnx` | — |
+| Image Segmentation | ✅ | `MLNet.ImageInference.Onnx` | — |
+| Image Embeddings | ✅ | `MLNet.ImageInference.Onnx` | `IEmbeddingGenerator<MLImage, Embedding<float>>` |
+| Zero-Shot Classification | ✅ | `MLNet.ImageInference.Onnx` | — |
+| Depth Estimation | ✅ | `MLNet.ImageInference.Onnx` | — |
+| Text-to-Image Generation | ✅ | `MLNet.ImageGeneration.OnnxGenAI` | — |
 
 ## Samples
 
 | Sample | Description | Directory |
 |---|---|---|
-| Image Classification | ViT classification with direct + ML.NET pipeline APIs | [`samples/ImageClassification/`](samples/ImageClassification/) |
+| Image Classification | ViT/SqueezeNet classification with direct + ML.NET pipeline APIs | [`samples/ImageClassification/`](samples/ImageClassification/) |
+| Object Detection | YOLOv8 detection with bounding boxes + NMS | [`samples/ObjectDetection/`](samples/ObjectDetection/) |
+| Image Segmentation | SegFormer semantic segmentation with mask visualization | [`samples/ImageSegmentation/`](samples/ImageSegmentation/) |
 | Image Embeddings | CLIP/DINOv2 embeddings with MEAI integration | [`samples/ImageEmbeddings/`](samples/ImageEmbeddings/) |
-| Text-to-Image | Planned Stable Diffusion generation API preview | [`samples/TextToImage/`](samples/TextToImage/) |
+| Zero-Shot Classification | CLIP vision+text zero-shot classification | [`samples/ZeroShotClassification/`](samples/ZeroShotClassification/) |
+| Depth Estimation | MiDaS/DPT monocular depth estimation | [`samples/DepthEstimation/`](samples/DepthEstimation/) |
+| Text-to-Image | Stable Diffusion generation with direct + MEAI APIs | [`samples/TextToImage/`](samples/TextToImage/) |
 
 ## Architecture Overview
 
-Every inference task follows a consistent **three-stage pipeline**:
+Every inference task follows a **composed facade pattern** — three reusable sub-transforms chained by a task-level orchestrator:
 
 ```
 MLImage → ① Preprocess → ② ONNX Score → ③ PostProcess → Result
@@ -103,11 +108,11 @@ MLImage → ① Preprocess → ② ONNX Score → ③ PostProcess → Result
 
 | Stage | Component | Description |
 |---|---|---|
-| ① Preprocess | `HuggingFaceImagePreprocessor` | Resize → Rescale → Per-channel Normalize → CHW tensor |
-| ② ONNX Score | `OnnxSessionPool` | `InferenceSession.Run()` with thread-safe session pooling |
-| ③ PostProcess | Task-specific | Softmax / Pooling+L2 / NMS / Argmax |
+| ① Preprocess | `ImagePreprocessingTransformer` | Bilinear resize → Rescale → Per-channel Normalize → CHW tensor |
+| ② ONNX Score | `OnnxImageScoringTransformer` | `InferenceSession.Run()` with batch support |
+| ③ PostProcess | Task-specific | Softmax / Pooling+L2 / NMS / Argmax / Depth normalize |
 
-Each task follows a **six-component pattern**: Options → PostProcessor → Estimator → Transformer → MLContext extension → MEAI adapter.
+Each task transformer composes the shared preprocessing and scoring sub-transforms with task-specific post-processing. Shared base classes (`OnnxImageCursorBase`, `OnnxImageDataViewBase`, `OnnxImageEstimatorBase`) eliminate duplication across all tasks.
 
 ### Batch Inference
 
@@ -141,7 +146,7 @@ See [docs/models-guide.md](docs/models-guide.md) for supported models, preproces
 The library integrates with [Microsoft.Extensions.AI](https://learn.microsoft.com/dotnet/ai/microsoft-extensions-ai) through adapter classes:
 
 - **`OnnxImageEmbeddingGenerator`** — implements `IEmbeddingGenerator<MLImage, Embedding<float>>`
-- **`OnnxImageGenerator`** — planned `IImageGenerator` implementation (experimental)
+- **`OnnxImageGenerator`** — generates images from text prompts
 - **`MLImage ↔ DataContent`** — extension methods bridge ML.NET images with MEAI content types
 
 ## Building
@@ -158,17 +163,17 @@ dotnet build MLNet.Image.slnx
 
 ## Testing
 
-**136 tests** across three test projects — all passing.
+**144 tests** across three test projects — all passing.
 
 | Test Project | Tests | Description |
 |---|---|---|
 | Core | 41 | Image preprocessing, conversions, result types |
 | Tokenizers | 14 | CLIP tokenizer encoding/decoding |
-| Inference | 81 | End-to-end ONNX inference across 8 models, all 5 tasks (incl. batch) |
+| Inference | 89 | End-to-end ONNX inference across 8+ models, all tasks (incl. batch) |
 
 ### Tested Models
 
-All five supported tasks are validated against 8 real ONNX models across all 5 preprocessor presets (ImageNet, CLIP, DINOv2, YOLOv8, SegFormer):
+All supported tasks are validated against real ONNX models across all preprocessor presets (ImageNet, CLIP, DINOv2, YOLOv8, SegFormer, MiDaS, DPT):
 
 | Model | Task | Notes |
 |---|---|---|
@@ -185,10 +190,10 @@ All five supported tasks are validated against 8 real ONNX models across all 5 p
 
 | Repository | Description |
 |---|---|
-| [mlnet-text-inference-custom-transforms](https://github.com/dotnet/mlnet-text-inference-custom-transforms) | ML.NET custom transforms for text inference (NER, sentiment, embeddings) |
-| [mlnet-audio-inference-custom-transforms](https://github.com/dotnet/mlnet-audio-inference-custom-transforms) | ML.NET custom transforms for audio inference (speech-to-text, classification) |
-| [model-packages-prototype](https://github.com/dotnet/model-packages-prototype) | ONNX models packaged as NuGet packages with metadata |
-| [dotnet-model-garden-prototype](https://github.com/dotnet/dotnet-model-garden-prototype) | Curated model catalog + download CLI |
+| [mlnet-text-inference-custom-transforms](https://github.com/luisquintanilla/mlnet-text-inference-custom-transforms) | ML.NET custom transforms for text inference (NER, sentiment, embeddings) |
+| [mlnet-audio-custom-transforms](https://github.com/luisquintanilla/mlnet-audio-custom-transforms) | ML.NET custom transforms for audio inference (speech-to-text, classification) |
+| [model-packages-prototype](https://github.com/luisquintanilla/model-packages-prototype) | ONNX models packaged as NuGet packages with metadata |
+| [dotnet-model-garden-prototype](https://github.com/luisquintanilla/dotnet-model-garden-prototype) | Curated model catalog + download CLI |
 
 ## License
 
