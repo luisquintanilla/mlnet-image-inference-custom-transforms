@@ -69,7 +69,7 @@ public sealed class OnnxSessionPool : IDisposable
                 options.ExecutionProvider, options.GpuDeviceId);
             return sessionOptions;
         }
-        catch (OnnxRuntimeException ex) when (options.FallbackToCpu)
+        catch (Exception ex) when (options.FallbackToCpu && ex is OnnxRuntimeException or EntryPointNotFoundException)
         {
             options.Logger?.LogWarning(ex, "{Provider} initialization failed, falling back to CPU", options.ExecutionProvider);
             sessionOptions.Dispose();

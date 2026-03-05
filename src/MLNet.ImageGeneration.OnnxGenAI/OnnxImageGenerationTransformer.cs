@@ -73,7 +73,7 @@ public sealed class OnnxImageGenerationTransformer : IDisposable
                     break;
             }
         }
-        catch (OnnxRuntimeException ex) when (options.FallbackToCpu)
+        catch (Exception ex) when (options.FallbackToCpu && ex is OnnxRuntimeException or EntryPointNotFoundException)
         {
             options.Logger?.LogWarning(ex, "{Provider} initialization failed, falling back to CPU", options.ExecutionProvider);
             sessionOptions = new SessionOptions();
