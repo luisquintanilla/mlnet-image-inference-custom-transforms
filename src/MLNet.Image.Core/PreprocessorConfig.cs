@@ -131,4 +131,15 @@ public record PreprocessorConfig
         CropSize = (224, 224),
         DoCenterCrop = false
     };
+
+    /// <summary>
+    /// SAM2 (Segment Anything Model v2) preset: ImageNet normalization, size=1024x1024.
+    /// Used by facebook/sam2-hiera-tiny and related SAM2 models.
+    /// </summary>
+    public static PreprocessorConfig SAM2 => new()
+    {
+        ImageSize = (1024, 1024),
+        CropSize = (1024, 1024),
+        DoCenterCrop = false
+    };
 }

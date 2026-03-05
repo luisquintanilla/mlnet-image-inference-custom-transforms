@@ -6,6 +6,7 @@ using MLNet.ImageInference.Onnx.Detection;
 using MLNet.ImageInference.Onnx.Embeddings;
 using MLNet.ImageInference.Onnx.ImageCaptioning;
 using MLNet.ImageInference.Onnx.Segmentation;
+using MLNet.ImageInference.Onnx.SegmentAnything;
 using MLNet.ImageInference.Onnx.ZeroShot;
 
 namespace MLNet.ImageInference.Onnx;
@@ -91,5 +92,18 @@ public static class MLContextExtensions
     {
         ArgumentNullException.ThrowIfNull(options);
         return new OnnxImageCaptioningEstimator(options);
+    }
+
+    /// <summary>
+    /// Create a SAM2 segment-anything pipeline: preprocess → image encoder → prompt decoder → segmentation mask.
+    /// Uses center-point prompting for automatic single-object segmentation in the IDataView pipeline.
+    /// For interactive prompt-based segmentation, use OnnxSegmentAnythingTransformer directly.
+    /// </summary>
+    public static OnnxSegmentAnythingEstimator OnnxSegmentAnything(
+        this TransformsCatalog catalog,
+        OnnxSegmentAnythingOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        return new OnnxSegmentAnythingEstimator(options);
     }
 }

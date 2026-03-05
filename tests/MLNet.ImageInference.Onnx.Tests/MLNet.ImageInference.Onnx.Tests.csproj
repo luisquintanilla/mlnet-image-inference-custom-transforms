@@ -31,6 +31,8 @@
     <Content Include="..\..\models\deeplabv3\**" CopyToOutputDirectory="PreserveNewest" LinkBase="models\deeplabv3" />
     <Content Include="..\..\models\dpt-hybrid\**" CopyToOutputDirectory="PreserveNewest" LinkBase="models\dpt-hybrid" />
     <Content Include="..\..\models\git-coco\**" CopyToOutputDirectory="PreserveNewest" LinkBase="models\git-coco" />
+    <Content Include="..\..\models\stable-diffusion\**" CopyToOutputDirectory="PreserveNewest" LinkBase="models\stable-diffusion" />
+    <Content Include="..\..\models\sam2-tiny\**" CopyToOutputDirectory="PreserveNewest" LinkBase="models\sam2-tiny" />
   </ItemGroup>
 
 </Project>
