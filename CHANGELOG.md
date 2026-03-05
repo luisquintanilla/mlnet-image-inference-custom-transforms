@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v0.4.0-preview.1] - Unreleased
+
+### Added
+- **GPU/ExecutionProvider support** — `OnnxExecutionProvider` enum (CPU, CUDA, DirectML, TensorRT) on all options
+- **CancellationToken** on all public transformer methods (11 transformers, MEAI adapters)
+- **Microsoft.Extensions.Logging** — `ILogger` property on options, model load timing, denoising step progress, GPU fallback warnings
+- **Eager model validation** — `File.Exists` check in `OnnxSessionPool` and SD constructor with descriptive `FileNotFoundException`
+- **FallbackToCpu** — graceful GPU → CPU degradation on provider initialization failure
+- `OnnxSessionPool.CreateSessionOptions(IOnnxImageOptions)` factory for GPU-configured sessions
+
+### Fixed
+- `OnnxImageEmbeddingGenerator` now properly declares `: IDisposable` interface
+
+### Changed
+- `OnnxSessionPool` constructor eagerly validates model file existence (was lazy)
+- All batch methods check `CancellationToken` between items
+- SD denoising loop and captioning decode loop check cancellation per step
+
 ## [v0.3.0-preview.1] - Unreleased
 
 ### Added
