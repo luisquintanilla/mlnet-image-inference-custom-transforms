@@ -122,6 +122,38 @@ Console.WriteLine(response.Text); // "a blue sky with no clouds"
 // Swap chatClient with OpenAI/Azure without changing any code above
 ```
 
+### Visual Question Answering (VQA)
+
+```csharp
+using MLNet.Image.Core;
+using MLNet.ImageInference.Onnx.ImageCaptioning;
+
+// Uses the same OnnxImageCaptioningTransformer with a VQA model
+var options = new OnnxImageCaptioningOptions
+{
+    EncoderModelPath = "models/git-base-textvqa/encoder.onnx",
+    DecoderModelPath = "models/git-base-textvqa/decoder.onnx",
+    VocabPath = "models/git-base-textvqa/vocab.txt",
+    PreprocessorConfig = PreprocessorConfig.GITVQA,
+    MaxLength = 30
+};
+
+using var transformer = new OnnxImageCaptioningTransformer(options);
+using var image = MLImage.CreateFromFile("photo.jpg");
+
+string answer = transformer.AnswerQuestion(image, "what text is in the image?");
+Console.WriteLine($"Answer: {answer}");
+
+// Also works via IChatClient — image + text = VQA, image only = captioning
+IChatClient chatClient = new OnnxImageCaptioningChatClient(options);
+var response = await chatClient.GetResponseAsync([
+    new ChatMessage(ChatRole.User, [
+        image.ToDataContent("image/png"),
+        new TextContent("what color is the sign?")
+    ])
+]);
+```
+
 ### Segment Anything (SAM2)
 
 ```csharp
@@ -159,6 +191,7 @@ var mask2 = transformer.Segment(embedding, SegmentAnythingPrompt.FromBoundingBox
 | Zero-Shot Classification | ✅ | `MLNet.ImageInference.Onnx` | — |
 | Depth Estimation | ✅ | `MLNet.ImageInference.Onnx` | — |
 | Image Captioning | ✅ | `MLNet.ImageInference.Onnx` | `IChatClient` |
+| Visual Question Answering | ✅ | `MLNet.ImageInference.Onnx` | `IChatClient` (image + text) |
 | Segment Anything (SAM2) | ✅ | `MLNet.ImageInference.Onnx` | — |
 | Text-to-Image Generation | ✅ | `MLNet.ImageGeneration.OnnxGenAI` | — |
 
@@ -173,8 +206,9 @@ var mask2 = transformer.Segment(embedding, SegmentAnythingPrompt.FromBoundingBox
 | Zero-Shot Classification | CLIP vision+text zero-shot classification | [`samples/ZeroShotClassification/`](samples/ZeroShotClassification/) |
 | Depth Estimation | MiDaS/DPT monocular depth estimation | [`samples/DepthEstimation/`](samples/DepthEstimation/) |
 | Image Captioning | GIT image-to-text captioning | [`samples/ImageCaptioning/`](samples/ImageCaptioning/) |
+| Visual Question Answering | GIT-VQA with direct API + IChatClient | [`samples/VisualQuestionAnswering/`](samples/VisualQuestionAnswering/) |
 | Segment Anything | SAM2 prompt-based segmentation (point, box, multi-point) | [`samples/SegmentAnything/`](samples/SegmentAnything/) |
-| Text-to-Image | Stable Diffusion generation with direct + MEAI APIs | [`samples/TextToImage/`](samples/TextToImage/) |
+| Text-to-Image | Stable Diffusion generation with CLIP tokenizer | [`samples/TextToImage/`](samples/TextToImage/) |
 
 ## Architecture Overview
 
@@ -192,7 +226,7 @@ MLImage → ① Preprocess → ② ONNX Score → ③ PostProcess → Result
 
 Each task transformer composes the shared preprocessing and scoring sub-transforms with task-specific post-processing. Shared base classes (`OnnxImageCursorBase`, `OnnxImageDataViewBase`, `OnnxImageEstimatorBase`) eliminate duplication across all tasks.
 
-**Multi-model tasks** (Zero-Shot, Image Captioning, SAM2) manage separate `OnnxSessionPool` instances — e.g., captioning uses a vision encoder + text decoder with autoregressive greedy token generation, and SAM2 uses an image encoder + prompt decoder for interactive segmentation.
+**Multi-model tasks** (Zero-Shot, Image Captioning/VQA, SAM2) manage separate `OnnxSessionPool` instances — e.g., captioning/VQA uses a vision encoder + text decoder with autoregressive greedy token generation (VQA prepends question tokens as initial decoder input), and SAM2 uses an image encoder + prompt decoder for interactive segmentation.
 
 ### Batch Inference
 
@@ -225,12 +259,12 @@ See [docs/models-guide.md](docs/models-guide.md) for supported models, preproces
 
 The library integrates with [Microsoft.Extensions.AI](https://learn.microsoft.com/dotnet/ai/microsoft-extensions-ai) through adapter classes:
 
-- **`OnnxImageCaptioningChatClient`** — implements `IChatClient` for image captioning (send image → get caption text)
+- **`OnnxImageCaptioningChatClient`** — implements `IChatClient` for image captioning and VQA (image only → caption, image + text → answer question)
 - **`OnnxImageEmbeddingGenerator`** — implements `IEmbeddingGenerator<MLImage, Embedding<float>>`
 - **`OnnxImageGenerator`** — generates images from text prompts
 - **`MLImage ↔ DataContent`** — extension methods bridge ML.NET images with MEAI content types
 
-The `IChatClient` adapter makes local ONNX captioning interchangeable with cloud vision APIs — swap `OnnxImageCaptioningChatClient` for an OpenAI or Azure client without changing any calling code.
+The `IChatClient` adapter makes local ONNX captioning/VQA interchangeable with cloud vision APIs — swap `OnnxImageCaptioningChatClient` for an OpenAI or Azure client without changing any calling code.
 
 ## Building
 
@@ -246,17 +280,17 @@ dotnet build MLNet.Image.slnx
 
 ## Testing
 
-**181 tests** across three test projects — all passing.
+**190 tests** across three test projects — all passing.
 
 | Test Project | Tests | Description |
 |---|---|---|
 | Core | 45 | Image preprocessing, conversions, result types |
 | Tokenizers | 14 | CLIP tokenizer encoding/decoding |
-| Inference | 122 | End-to-end ONNX inference across 12+ models, all tasks, IChatClient, SAM2 (incl. batch) |
+| Inference | 131 | End-to-end ONNX inference across 13+ models, all tasks, IChatClient, VQA, SAM2, SD tokenizer (incl. batch) |
 
 ### Tested Models
 
-All supported tasks are validated against real ONNX models across all preprocessor presets (ImageNet, CLIP, DINOv2, YOLOv8, SegFormer, MiDaS, DPT, GIT, SAM2):
+All supported tasks are validated against real ONNX models across all preprocessor presets (ImageNet, CLIP, DINOv2, YOLOv8, SegFormer, MiDaS, DPT, GIT, GITVQA, SAM2):
 
 | Model | Task | Notes |
 |---|---|---|
@@ -270,8 +304,9 @@ All supported tasks are validated against real ONNX models across all preprocess
 | DeepLabV3-ResNet50 | Segmentation | 21 Pascal VOC classes, 520×520 |
 | DPT-Hybrid (MiDaS) | Depth Estimation | Monocular depth, 384×384, ImageNet normalization |
 | GIT-base-COCO | Image Captioning | Autoregressive captioning, BERT WordPiece tokenizer |
+| GIT-base-TextVQA | Visual Question Answering | Same architecture as captioning, 480×480, question-conditioned generation |
 | SAM2 Hiera-Tiny | Segment Anything | Prompt-based segmentation (point/box), encode-once decode-many |
-| Stable Diffusion v1.4 | Text-to-Image | 3-stage pipeline: CLIP text encoder → UNet → VAE decoder |
+| Stable Diffusion v1.4 | Text-to-Image | 3-stage pipeline: CLIP text encoder → UNet → VAE decoder, real CLIP BPE tokenizer |
 
 ## Related Projects
 
