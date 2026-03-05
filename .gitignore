@@ -55,3 +55,4 @@ artifacts/
 # Downloaded models (large binary files)
 models/
 !models/.gitkeep
+test-image.*
