@@ -109,6 +109,15 @@ MLImage → ① Preprocess → ② ONNX Score → ③ PostProcess → Result
 
 Each task follows a **six-component pattern**: Options → PostProcessor → Estimator → Transformer → MLContext extension → MEAI adapter.
 
+### Batch Inference
+
+All inference transforms support **lookahead batching** through ML.NET's `IDataView` cursors:
+
+- **Configurable `BatchSize`** (default 32) — cursors pre-fetch upcoming rows and score them in a single ONNX call
+- **True tensor batching** for models with dynamic batch dimensions (MobileNet, CLIP, DINOv2, ResNet) — multiple images are stacked into one `N×C×H×W` tensor
+- **Per-image fallback** for fixed-batch models (SqueezeNet, YOLO, SegFormer) — images are scored individually within the batch window
+- **Batch convenience methods** on every transformer: `ClassifyBatch`, `DetectBatch`, `GenerateEmbeddingBatch`, `SegmentBatch`, `ZeroShotClassifyBatch`
+
 For full details, see [docs/architecture.md](docs/architecture.md).
 
 ## Model Requirements
@@ -149,17 +158,17 @@ dotnet build MLNet.Image.slnx
 
 ## Testing
 
-**123 tests** across three test projects — all passing.
+**136 tests** across three test projects — all passing.
 
 | Test Project | Tests | Description |
 |---|---|---|
-| Core | 37 | Image preprocessing, conversions, result types |
+| Core | 41 | Image preprocessing, conversions, result types |
 | Tokenizers | 14 | CLIP tokenizer encoding/decoding |
-| Inference | 72 | End-to-end ONNX inference across 8 models, all 5 tasks |
+| Inference | 81 | End-to-end ONNX inference across 8 models, all 5 tasks (incl. batch) |
 
 ### Tested Models
 
-All five supported tasks are validated against 8 real ONNX models:
+All five supported tasks are validated against 8 real ONNX models across all 5 preprocessor presets (ImageNet, CLIP, DINOv2, YOLOv8, SegFormer):
 
 | Model | Task | Notes |
 |---|---|---|
