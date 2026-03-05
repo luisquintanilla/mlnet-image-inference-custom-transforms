@@ -32,3 +32,7 @@ jobs:
 
       - name: Publish to GitHub Packages
         run: dotnet nuget push ./artifacts/*.nupkg --source "https://nuget.pkg.github.com/luisquintanilla/index.json" --api-key ${{ secrets.GITHUB_TOKEN }}
+
+      # NUGET_API_KEY secret must be configured in repo settings (Settings > Secrets > Actions)
+      - name: Push to NuGet.org
+        run: dotnet nuget push "./artifacts/*.nupkg" --source https://api.nuget.org/v3/index.json --api-key ${{ secrets.NUGET_API_KEY }} --skip-duplicate
