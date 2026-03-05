@@ -1,8 +1,10 @@
+using Microsoft.Extensions.AI;
 using Microsoft.ML;
 using Microsoft.ML.Data;
 using MLNet.Image.Core;
 using MLNet.ImageInference.Onnx;
 using MLNet.ImageInference.Onnx.ImageCaptioning;
+using MLNet.ImageInference.Onnx.MEAI;
 
 // =====================================================
 // Image Captioning Sample using GIT (microsoft/git-base-coco)
@@ -89,6 +91,22 @@ var pipeline = mlContext.Transforms.OnnxImageCaptioning(new OnnxImageCaptioningO
 
 Console.WriteLine("Pipeline created successfully.");
 Console.WriteLine("Full IDataView Transform() support available.");
+
+Console.WriteLine();
+
+// --- Style 3: MEAI IChatClient (interchangeable with cloud APIs) ---
+Console.WriteLine("--- Style 3: MEAI IChatClient ---");
+Console.WriteLine();
+
+var captioningClient = new OnnxImageCaptioningChatClient(transformer, modelId: "git-base-coco");
+IChatClient chatClient = captioningClient;
+
+var imageContent = image.ToDataContent("image/png");
+var chatResponse = await chatClient.GetResponseAsync([
+    new ChatMessage(ChatRole.User, [imageContent])
+]);
+Console.WriteLine($"IChatClient caption: {chatResponse.Text}");
+Console.WriteLine($"Provider: {captioningClient.Metadata.ProviderName}, Model: {captioningClient.Metadata.DefaultModelId}");
 
 Console.WriteLine();
 Console.WriteLine("Done!");
