@@ -15,6 +15,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\MLNet.Image.Core\MLNet.Image.Core.csproj" />
+    <ProjectReference Include="..\MLNet.Image.Tokenizers\MLNet.Image.Tokenizers.csproj" />
   </ItemGroup>
 
   <ItemGroup>

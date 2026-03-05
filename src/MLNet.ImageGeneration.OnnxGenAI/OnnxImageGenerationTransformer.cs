@@ -1,6 +1,7 @@
 using Microsoft.ML.Data;
 using Microsoft.ML.OnnxRuntime;
 using Microsoft.ML.OnnxRuntime.Tensors;
+using MLNet.Image.Tokenizers;
 
 namespace MLNet.ImageGeneration.OnnxGenAI;
 
@@ -16,6 +17,7 @@ public sealed class OnnxImageGenerationTransformer : IDisposable
     private readonly InferenceSession _unet;
     private readonly InferenceSession _vaeDecoder;
     private readonly EulerDiscreteScheduler _scheduler;
+    private readonly ClipTokenizer? _tokenizer;
     private bool _disposed;
 
     public OnnxImageGenerationTransformer(OnnxImageGenerationOptions options)
@@ -32,6 +34,9 @@ public sealed class OnnxImageGenerationTransformer : IDisposable
         _unet = new InferenceSession(unetPath, sessionOptions);
         _vaeDecoder = new InferenceSession(vaeDecoderPath, sessionOptions);
         _scheduler = new EulerDiscreteScheduler();
+
+        if (options.VocabPath is not null && options.MergesPath is not null)
+            _tokenizer = ClipTokenizer.Create(options.VocabPath, options.MergesPath);
     }
 
     /// <summary>
@@ -49,10 +54,9 @@ public sealed class OnnxImageGenerationTransformer : IDisposable
         int latentH = height / 8;
         int latentW = width / 8;
 
-        // 1. Tokenize (simple CLIP tokenizer — pad to 77 with EOT token 49407)
-        // TODO: Replace with full CLIP BPE tokenizer from MLNet.Image.Tokenizers for proper text encoding.
-        var tokenIds = TokenizeSimple(prompt);
-        var uncondTokenIds = TokenizeSimple(_options.NegativePrompt ?? "");
+        // 1. Tokenize with CLIP BPE tokenizer (or fallback to simple SOT+EOT)
+        var tokenIds = Tokenize(prompt);
+        var uncondTokenIds = Tokenize(_options.NegativePrompt ?? "");
 
         // 2. Text encode
         var condEmbeddings = TextEncode(tokenIds);
@@ -114,16 +118,26 @@ public sealed class OnnxImageGenerationTransformer : IDisposable
     }
 
     /// <summary>
-    /// Simplified CLIP tokenizer: SOT (49406) + EOT (49407) padded to 77 tokens.
-    /// TODO: Replace with full CLIP BPE tokenizer from MLNet.Image.Tokenizers for real prompts.
+    /// Tokenize text using CLIP BPE tokenizer if available, otherwise fall back to simple SOT+EOT.
+    /// Returns long[] of length 77 (CLIP context length).
     /// </summary>
-    private static long[] TokenizeSimple(string text)
+    private long[] Tokenize(string text)
     {
+        if (_tokenizer is not null)
+        {
+            var intTokens = _tokenizer.Encode(text);
+            var longTokens = new long[intTokens.Length];
+            for (int i = 0; i < intTokens.Length; i++)
+                longTokens[i] = intTokens[i];
+            return longTokens;
+        }
+
+        // Fallback: SOT + EOT padded to 77 (no real text encoding)
         var tokens = new long[77];
-        tokens[0] = 49406; // SOT (start of text)
-        tokens[1] = 49407; // EOT (end of text)
+        tokens[0] = 49406; // SOT
+        tokens[1] = 49407; // EOT
         for (int i = 2; i < 77; i++)
-            tokens[i] = 49407; // pad with EOT
+            tokens[i] = 49407;
         return tokens;
     }
 

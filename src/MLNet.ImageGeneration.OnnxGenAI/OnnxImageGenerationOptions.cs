@@ -27,4 +27,16 @@ public class OnnxImageGenerationOptions
 
     /// <summary>Negative prompt for classifier-free guidance.</summary>
     public string? NegativePrompt { get; init; }
+
+    /// <summary>
+    /// Path to CLIP vocab.json file for text tokenization. 
+    /// When null, uses a simple SOT+EOT tokenizer (no real text encoding).
+    /// </summary>
+    public string? VocabPath { get; init; }
+
+    /// <summary>
+    /// Path to CLIP merges.txt file for text tokenization.
+    /// Required when VocabPath is set.
+    /// </summary>
+    public string? MergesPath { get; init; }
 }

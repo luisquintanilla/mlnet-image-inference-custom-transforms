@@ -1,3 +1,4 @@
+using Microsoft.ML.Data;
 using MLNet.Image.Core;
 using MLNet.ImageGeneration.OnnxGenAI;
 using Xunit;
@@ -133,5 +134,58 @@ public class GenerationTests
         Assert.NotNull(image);
         Assert.Equal(256, image.Width);
         Assert.Equal(256, image.Height);
+    }
+
+    private const string VocabPath = "models/clip/vocab.json";
+    private const string MergesPath = "models/clip/merges.txt";
+    private static bool TokenizerExists => File.Exists(VocabPath) && File.Exists(MergesPath);
+
+    [SkippableFact]
+    public void Generate_WithClipTokenizer_DifferentPromptsDifferentImages()
+    {
+        Skip.Unless(ModelExists && TokenizerExists, "SD model or CLIP tokenizer not available");
+
+        var options = new OnnxImageGenerationOptions
+        {
+            ModelDirectory = ModelDir,
+            VocabPath = VocabPath,
+            MergesPath = MergesPath,
+            NumInferenceSteps = 1,
+            Width = 256,
+            Height = 256,
+            Seed = 42
+        };
+
+        using var transformer = new OnnxImageGenerationTransformer(options);
+
+        using var image1 = transformer.Generate("a cat sitting on a beach");
+        using var image2 = transformer.Generate("a mountain covered in snow");
+
+        Assert.NotNull(image1);
+        Assert.NotNull(image2);
+        Assert.Equal(256, image1.Width);
+        Assert.Equal(256, image2.Width);
+
+        // With real tokenizer, different prompts should produce different pixel data
+        // Extract a sample of pixels and verify they differ
+        var pixels1 = GetPixelSample(image1);
+        var pixels2 = GetPixelSample(image2);
+        Assert.False(pixels1.SequenceEqual(pixels2),
+            "Different prompts with real tokenizer should produce different images");
+    }
+
+    private static byte[] GetPixelSample(MLImage image)
+    {
+        // Sample center region bytes from the raw pixel data
+        var allPixels = image.Pixels;
+        int bytesPerPixel = 4; // RGBA32
+        int stride = image.Width * bytesPerPixel;
+        int cx = image.Width / 2;
+        int cy = image.Height / 2;
+        int startOffset = cy * stride + cx * bytesPerPixel;
+        var sample = new byte[64];
+        for (int i = 0; i < sample.Length && startOffset + i < allPixels.Length; i++)
+            sample[i] = allPixels[startOffset + i];
+        return sample;
     }
 }
