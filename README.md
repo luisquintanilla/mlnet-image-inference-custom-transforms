@@ -98,6 +98,30 @@ string caption = transformer.GenerateCaption(image);
 Console.WriteLine($"Caption: {caption}");
 ```
 
+### Image Captioning via IChatClient (MEAI)
+
+```csharp
+using Microsoft.Extensions.AI;
+using MLNet.Image.Core;
+using MLNet.ImageInference.Onnx.ImageCaptioning;
+using MLNet.ImageInference.Onnx.MEAI;
+
+// Same local model, exposed as the standard IChatClient interface
+IChatClient chatClient = new OnnxImageCaptioningChatClient(new OnnxImageCaptioningOptions
+{
+    EncoderModelPath = "models/git-coco/encoder.onnx",
+    DecoderModelPath = "models/git-coco/decoder.onnx",
+    VocabPath = "models/git-coco/vocab.txt"
+});
+
+using var image = MLImage.CreateFromFile("photo.jpg");
+var response = await chatClient.GetResponseAsync([
+    new ChatMessage(ChatRole.User, [image.ToDataContent("image/png")])
+]);
+Console.WriteLine(response.Text); // "a blue sky with no clouds"
+// Swap chatClient with OpenAI/Azure without changing any code above
+```
+
 ## Supported Tasks
 
 | Task | Status | Package | MEAI Interface |
@@ -108,7 +132,7 @@ Console.WriteLine($"Caption: {caption}");
 | Image Embeddings | ✅ | `MLNet.ImageInference.Onnx` | `IEmbeddingGenerator<MLImage, Embedding<float>>` |
 | Zero-Shot Classification | ✅ | `MLNet.ImageInference.Onnx` | — |
 | Depth Estimation | ✅ | `MLNet.ImageInference.Onnx` | — |
-| Image Captioning | ✅ | `MLNet.ImageInference.Onnx` | — |
+| Image Captioning | ✅ | `MLNet.ImageInference.Onnx` | `IChatClient` |
 | Text-to-Image Generation | ✅ | `MLNet.ImageGeneration.OnnxGenAI` | — |
 
 ## Samples
@@ -173,9 +197,12 @@ See [docs/models-guide.md](docs/models-guide.md) for supported models, preproces
 
 The library integrates with [Microsoft.Extensions.AI](https://learn.microsoft.com/dotnet/ai/microsoft-extensions-ai) through adapter classes:
 
+- **`OnnxImageCaptioningChatClient`** — implements `IChatClient` for image captioning (send image → get caption text)
 - **`OnnxImageEmbeddingGenerator`** — implements `IEmbeddingGenerator<MLImage, Embedding<float>>`
 - **`OnnxImageGenerator`** — generates images from text prompts
 - **`MLImage ↔ DataContent`** — extension methods bridge ML.NET images with MEAI content types
+
+The `IChatClient` adapter makes local ONNX captioning interchangeable with cloud vision APIs — swap `OnnxImageCaptioningChatClient` for an OpenAI or Azure client without changing any calling code.
 
 ## Building
 
@@ -191,13 +218,13 @@ dotnet build MLNet.Image.slnx
 
 ## Testing
 
-**164 tests** across three test projects — all passing.
+**172 tests** across three test projects — all passing.
 
 | Test Project | Tests | Description |
 |---|---|---|
 | Core | 45 | Image preprocessing, conversions, result types |
 | Tokenizers | 14 | CLIP tokenizer encoding/decoding |
-| Inference | 105 | End-to-end ONNX inference across 9+ models, all tasks (incl. batch) |
+| Inference | 113 | End-to-end ONNX inference across 10+ models, all tasks, IChatClient (incl. batch) |
 
 ### Tested Models
 
