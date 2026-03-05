@@ -7,31 +7,21 @@ namespace MLNet.ImageInference.Onnx.Detection;
 /// <summary>
 /// Facade estimator that chains: image preprocessing → ONNX scoring → NMS object detection.
 /// </summary>
-public sealed class OnnxObjectDetectionEstimator : IEstimator<OnnxObjectDetectionTransformer>
+public sealed class OnnxObjectDetectionEstimator
+    : OnnxImageEstimatorBase<OnnxObjectDetectionTransformer, OnnxObjectDetectionOptions>
 {
-    private readonly OnnxObjectDetectionOptions _options;
-
     public OnnxObjectDetectionEstimator(OnnxObjectDetectionOptions options)
-    {
-        ArgumentNullException.ThrowIfNull(options);
-        _options = options;
-    }
+        : base(options) { }
 
-    public OnnxObjectDetectionTransformer Fit(IDataView input)
-    {
-        return new OnnxObjectDetectionTransformer(_options);
-    }
+    protected override OnnxObjectDetectionTransformer CreateTransformer()
+        => new(Options);
 
-    public SchemaShape GetOutputSchema(SchemaShape inputSchema)
+    protected override void ConfigureOutputSchema(IDictionary<string, SchemaShape.Column> columns)
     {
-        var columns = inputSchema.ToDictionary(c => c.Name);
-
-        columns[_options.OutputColumnName] = SchemaShapeHelper.CreateColumn(
-            _options.OutputColumnName,
+        columns[Options.OutputColumnName] = SchemaShapeHelper.CreateColumn(
+            Options.OutputColumnName,
             SchemaShape.Column.VectorKind.Vector,
             NumberDataViewType.Single,
             isKey: false);
-
-        return new SchemaShape(columns.Values);
     }
 }

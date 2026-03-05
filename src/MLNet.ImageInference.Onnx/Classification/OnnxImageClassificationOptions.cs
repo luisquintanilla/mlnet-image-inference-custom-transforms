@@ -5,7 +5,7 @@ namespace MLNet.ImageInference.Onnx.Classification;
 /// <summary>
 /// Options for the OnnxImageClassification facade estimator.
 /// </summary>
-public class OnnxImageClassificationOptions
+public class OnnxImageClassificationOptions : Shared.IOnnxImageOptions
 {
     /// <summary>Path to the ONNX model file.</summary>
     public required string ModelPath { get; init; }

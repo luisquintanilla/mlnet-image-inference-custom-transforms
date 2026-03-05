@@ -5,7 +5,7 @@ namespace MLNet.ImageInference.Onnx.Detection;
 /// <summary>
 /// Options for the OnnxObjectDetection facade estimator.
 /// </summary>
-public class OnnxObjectDetectionOptions
+public class OnnxObjectDetectionOptions : Shared.IOnnxImageOptions
 {
     /// <summary>Path to the ONNX model file.</summary>
     public required string ModelPath { get; init; }

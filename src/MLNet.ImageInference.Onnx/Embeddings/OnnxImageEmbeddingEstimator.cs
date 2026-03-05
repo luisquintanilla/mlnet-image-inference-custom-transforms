@@ -7,31 +7,21 @@ namespace MLNet.ImageInference.Onnx.Embeddings;
 /// <summary>
 /// Facade estimator that chains: image preprocessing → ONNX scoring → pooling → L2 normalize.
 /// </summary>
-public sealed class OnnxImageEmbeddingEstimator : IEstimator<OnnxImageEmbeddingTransformer>
+public sealed class OnnxImageEmbeddingEstimator
+    : OnnxImageEstimatorBase<OnnxImageEmbeddingTransformer, OnnxImageEmbeddingOptions>
 {
-    private readonly OnnxImageEmbeddingOptions _options;
-
     public OnnxImageEmbeddingEstimator(OnnxImageEmbeddingOptions options)
-    {
-        ArgumentNullException.ThrowIfNull(options);
-        _options = options;
-    }
+        : base(options) { }
 
-    public OnnxImageEmbeddingTransformer Fit(IDataView input)
-    {
-        return new OnnxImageEmbeddingTransformer(_options);
-    }
+    protected override OnnxImageEmbeddingTransformer CreateTransformer()
+        => new(Options);
 
-    public SchemaShape GetOutputSchema(SchemaShape inputSchema)
+    protected override void ConfigureOutputSchema(IDictionary<string, SchemaShape.Column> columns)
     {
-        var columns = inputSchema.ToDictionary(c => c.Name);
-
-        columns[_options.EmbeddingColumnName] = SchemaShapeHelper.CreateColumn(
-            _options.EmbeddingColumnName,
+        columns[Options.EmbeddingColumnName] = SchemaShapeHelper.CreateColumn(
+            Options.EmbeddingColumnName,
             SchemaShape.Column.VectorKind.Vector,
             NumberDataViewType.Single,
             isKey: false);
-
-        return new SchemaShape(columns.Values);
     }
 }

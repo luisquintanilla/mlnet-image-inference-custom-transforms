@@ -5,7 +5,7 @@ namespace MLNet.ImageInference.Onnx.Segmentation;
 /// <summary>
 /// Options for the OnnxImageSegmentation facade estimator.
 /// </summary>
-public class OnnxImageSegmentationOptions
+public class OnnxImageSegmentationOptions : Shared.IOnnxImageOptions
 {
     /// <summary>Path to the ONNX model file.</summary>
     public required string ModelPath { get; init; }

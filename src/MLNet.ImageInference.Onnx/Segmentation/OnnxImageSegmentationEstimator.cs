@@ -7,31 +7,21 @@ namespace MLNet.ImageInference.Onnx.Segmentation;
 /// <summary>
 /// Facade estimator that chains: image preprocessing → ONNX scoring → argmax segmentation.
 /// </summary>
-public sealed class OnnxImageSegmentationEstimator : IEstimator<OnnxImageSegmentationTransformer>
+public sealed class OnnxImageSegmentationEstimator
+    : OnnxImageEstimatorBase<OnnxImageSegmentationTransformer, OnnxImageSegmentationOptions>
 {
-    private readonly OnnxImageSegmentationOptions _options;
-
     public OnnxImageSegmentationEstimator(OnnxImageSegmentationOptions options)
-    {
-        ArgumentNullException.ThrowIfNull(options);
-        _options = options;
-    }
+        : base(options) { }
 
-    public OnnxImageSegmentationTransformer Fit(IDataView input)
-    {
-        return new OnnxImageSegmentationTransformer(_options);
-    }
+    protected override OnnxImageSegmentationTransformer CreateTransformer()
+        => new(Options);
 
-    public SchemaShape GetOutputSchema(SchemaShape inputSchema)
+    protected override void ConfigureOutputSchema(IDictionary<string, SchemaShape.Column> columns)
     {
-        var columns = inputSchema.ToDictionary(c => c.Name);
-
-        columns[_options.OutputColumnName] = SchemaShapeHelper.CreateColumn(
-            _options.OutputColumnName,
+        columns[Options.OutputColumnName] = SchemaShapeHelper.CreateColumn(
+            Options.OutputColumnName,
             SchemaShape.Column.VectorKind.Vector,
             NumberDataViewType.Int32,
             isKey: false);
-
-        return new SchemaShape(columns.Values);
     }
 }

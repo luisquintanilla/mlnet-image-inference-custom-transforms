@@ -5,7 +5,7 @@ namespace MLNet.ImageInference.Onnx.ZeroShot;
 /// <summary>
 /// Options for zero-shot image classification using CLIP (vision + text encoders).
 /// </summary>
-public class OnnxZeroShotImageClassificationOptions
+public class OnnxZeroShotImageClassificationOptions : Shared.IOnnxImageOptions
 {
     /// <summary>Path to the CLIP vision encoder ONNX model.</summary>
     public required string ImageModelPath { get; init; }

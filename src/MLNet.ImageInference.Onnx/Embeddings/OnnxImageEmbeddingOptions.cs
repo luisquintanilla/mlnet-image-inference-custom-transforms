@@ -5,7 +5,7 @@ namespace MLNet.ImageInference.Onnx.Embeddings;
 /// <summary>
 /// Options for the OnnxImageEmbedding facade estimator.
 /// </summary>
-public class OnnxImageEmbeddingOptions
+public class OnnxImageEmbeddingOptions : Shared.IOnnxImageOptions
 {
     /// <summary>Path to the ONNX model file.</summary>
     public required string ModelPath { get; init; }
