@@ -1,14 +1,12 @@
+using Microsoft.ML.Data;
 using MLNet.ImageGeneration.OnnxGenAI;
 using MLNet.ImageGeneration.OnnxGenAI.MEAI;
 
 // =====================================================
-// Text-to-Image Generation Sample (Preview / Planned)
+// Text-to-Image Generation Sample
 // =====================================================
 //
-// STATUS: This is a preview of the planned text-to-image generation API.
-//         Full implementation requires Microsoft.ML.OnnxRuntimeGenAI for net10.0.
-//
-// Before running (when fully implemented):
+// Before running:
 //   1. Download a Stable Diffusion ONNX model:
 //      pip install optimum[onnxruntime]
 //      optimum-cli export onnx --model stabilityai/stable-diffusion-2-1 models/sd/
@@ -17,15 +15,8 @@ using MLNet.ImageGeneration.OnnxGenAI.MEAI;
 //        text_encoder/model.onnx
 //        unet/model.onnx
 //        vae_decoder/model.onnx
-//        tokenizer/
-//        scheduler/scheduler_config.json
-//
-// Reference: https://github.com/elbruno/ElBruno.Text2Image
 
-Console.WriteLine("=== ML.NET Text-to-Image Generation (Preview) ===");
-Console.WriteLine();
-Console.WriteLine("⚠️  This sample demonstrates the PLANNED text-to-image generation API.");
-Console.WriteLine("    Full implementation is pending OnnxRuntimeGenAI availability for net10.0.");
+Console.WriteLine("=== ML.NET Text-to-Image Generation ===");
 Console.WriteLine();
 
 var modelDirectory = args.Length > 0 ? args[0] : "models/sd";
@@ -50,41 +41,34 @@ Console.WriteLine($"Steps: {options.NumInferenceSteps}, Guidance: {options.Guida
 Console.WriteLine($"Dimensions: {options.Width}x{options.Height}, Seed: {options.Seed}");
 Console.WriteLine();
 
-using var transformer = new OnnxImageGenerationTransformer(options);
-
 try
 {
-    var imageBytes = transformer.Generate("a cat sitting on a beach at sunset");
-    Console.WriteLine($"Generated image: {imageBytes.Length} bytes");
+    using var transformer = new OnnxImageGenerationTransformer(options);
+    using var image = transformer.Generate("a cat sitting on a beach at sunset");
+    Console.WriteLine($"Generated image: {image.Width}x{image.Height}");
 }
-catch (NotImplementedException ex)
+catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException)
 {
-    Console.WriteLine($"🚧 Expected: {ex.Message}");
-    Console.WriteLine();
-    Console.WriteLine("When implemented, the pipeline will be:");
-    Console.WriteLine("  Prompt → CLIP text encoder → UNet denoising (20 steps) → VAE decoder → PNG image");
+    Console.WriteLine($"⚠️  Model not found: {ex.Message}");
+    Console.WriteLine("    Download a Stable Diffusion ONNX model first (see instructions below).");
 }
 
 Console.WriteLine();
 
 // --- Style 2: MEAI OnnxImageGenerator API ---
-Console.WriteLine("--- Style 2: MEAI OnnxImageGenerator (Planned) ---");
+Console.WriteLine("--- Style 2: MEAI OnnxImageGenerator ---");
 Console.WriteLine();
-
-using var generator = new OnnxImageGenerator(options);
 
 try
 {
-    var imageBytes = await generator.GenerateAsync("a serene mountain landscape at dawn");
-    Console.WriteLine($"Generated image: {imageBytes.Length} bytes");
+    using var generator = new OnnxImageGenerator(options);
+    using var image = await generator.GenerateAsync("a serene mountain landscape at dawn");
+    Console.WriteLine($"Generated image: {image.Width}x{image.Height}");
 }
-catch (NotImplementedException ex)
+catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException)
 {
-    Console.WriteLine($"🚧 Expected: {ex.Message}");
-    Console.WriteLine();
-    Console.WriteLine("When IImageGenerator stabilizes in MEAI, usage will be:");
-    Console.WriteLine("  IImageGenerator generator = new OnnxImageGenerator(options);");
-    Console.WriteLine("  var image = await generator.GenerateAsync(\"your prompt\");");
+    Console.WriteLine($"⚠️  Model not found: {ex.Message}");
+    Console.WriteLine("    Download a Stable Diffusion ONNX model first (see instructions below).");
 }
 
 Console.WriteLine();
@@ -99,7 +83,5 @@ Console.WriteLine();
 Console.WriteLine("Option 2: Download pre-exported ONNX model");
 Console.WriteLine("  pip install huggingface-hub");
 Console.WriteLine("  huggingface-cli download stabilityai/stable-diffusion-2-1-onnx --local-dir models/sd/");
-Console.WriteLine();
-Console.WriteLine("See: https://github.com/elbruno/ElBruno.Text2Image for a reference implementation.");
 Console.WriteLine();
 Console.WriteLine("Done!");

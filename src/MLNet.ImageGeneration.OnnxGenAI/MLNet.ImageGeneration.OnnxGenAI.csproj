@@ -16,7 +16,8 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.ML" Version="5.0.0-preview.1.25125.4" />
     <PackageReference Include="Microsoft.Extensions.AI.Abstractions" Version="9.5.0" />
-    <!-- TODO: Add Microsoft.ML.OnnxRuntimeGenAI when implementing generation transforms -->
+    <PackageReference Include="Microsoft.ML.OnnxRuntime.Managed" Version="1.22.0" />
+    <PackageReference Include="System.Numerics.Tensors" Version="10.0.0-preview.2.25163.2" />
   </ItemGroup>
 
 </Project>
