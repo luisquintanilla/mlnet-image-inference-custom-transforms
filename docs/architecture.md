@@ -155,6 +155,57 @@ MLImage + string[] labels → CLIP(image encoder + text encoder) → cosine simi
 
 ---
 
+## Batch Inference
+
+The library supports batch inference through two mechanisms:
+
+### 1. Batch Convenience API
+
+Each transformer exposes batch methods that accept multiple images at once:
+
+- `ClassifyBatch(IReadOnlyList<MLImage>)` → `(string, float)[][]`
+- `DetectBatch(IReadOnlyList<MLImage>)` → `BoundingBox[][]`
+- `SegmentBatch(IReadOnlyList<MLImage>)` → `SegmentationMask[]`
+- `GenerateEmbeddingBatch(IReadOnlyList<MLImage>)` → `float[][]`
+- `ClassifyBatch(IReadOnlyList<MLImage>)` (zero-shot) → `(string, float)[][]`
+
+### 2. IDataView Lookahead Batching
+
+Cursors use the `FillNextBatch` pattern (from the text repo):
+
+- Configurable `BatchSize` (default 32) on each task's Options class
+- Cursor reads ahead `BatchSize` rows from upstream, calls the batch method, caches results
+- `MoveNext()` serves from cache until exhausted, then refills
+- Reduces N ONNX calls to ⌈N/BatchSize⌉
+
+```mermaid
+flowchart LR
+    Upstream["Upstream IDataView"]
+    Cursor["Task Cursor<br/><i>FillNextBatch</i>"]
+    Cache["Result Cache<br/><i>BatchSize results</i>"]
+    Consumer["MoveNext()<br/><i>serves from cache</i>"]
+
+    Upstream -->|"read BatchSize rows"| Cursor
+    Cursor -->|"single batch call"| Cache
+    Cache -->|"yield one row"| Consumer
+
+    style Cursor fill:#e1f5fe
+    style Cache fill:#fff3e0
+```
+
+### Dynamic vs Fixed Batch
+
+The batch strategy depends on whether the ONNX model's first input dimension is dynamic (reported as `-1` by ONNX Runtime):
+
+| Batch Type | Strategy | Models |
+|---|---|---|
+| **Dynamic** (`IsBatchDynamic = true`) | TRUE tensor batching — all images stacked into one `N×C×H×W` tensor, single `session.Run()` | MobileNetV2, CLIP, DINOv2, ResNet-50, SegFormer, DeepLabV3 |
+| **Fixed** (`IsBatchDynamic = false`) | Per-image loop — preprocessing is batched but ONNX inference runs once per image | SqueezeNet, YOLOv8 |
+
+`ModelMetadataDiscovery.IsBatchDynamic` inspects the first input dimension at model load time. The transformer's batch method checks this property and selects the appropriate strategy automatically.
+
+---
+
 ## Six-Component Pattern
 
 Every task follows a consistent six-component architecture:

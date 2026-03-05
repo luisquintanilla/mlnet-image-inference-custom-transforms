@@ -242,18 +242,54 @@ If a model uses standard ImageNet preprocessing, you can skip reading the JSON a
 
 ## Recommended Models by Task
 
-| Task | Model | HuggingFace ID | Preset | Notes |
-|---|---|---|---|---|
-| Classification | ViT-Base | `google/vit-base-patch16-224` | `ImageNet` | 1000 ImageNet classes, 86M params |
-| Classification | DeiT-Small | `facebook/deit-small-patch16-224` | `ImageNet` | Efficient ViT variant |
-| Embeddings | CLIP ViT-B/32 | `openai/clip-vit-base-patch32` | `CLIP` | 512-dim embeddings |
-| Embeddings | DINOv2-Small | `facebook/dinov2-small` | `DINOv2` | 384-dim, good for similarity |
-| Detection | YOLOv8n | `ultralytics/yolov8n` | `YOLOv8` | 80 COCO classes, fast |
-| Segmentation | SegFormer-B0 | `nvidia/segformer-b0-finetuned-ade-512-512` | `SegFormer` | 150 ADE20K classes |
-| Zero-Shot | CLIP ViT-B/32 | `openai/clip-vit-base-patch32` | `CLIP` | Needs both vision + text encoders |
-| Embeddings | DINOv2 ViT-S/14 | `facebook/dinov2-small` | `DINOv2` | 384-dim, self-supervised, ~85MB |
-| Classification | ResNet-50 v1.7 | `microsoft/resnet-50` | `ImageNet` | 1000 classes, dynamic batch, ~100MB |
-| Segmentation | DeepLabV3-ResNet50 | `pytorch/deeplabv3-resnet50` | Custom | 21 Pascal VOC classes, 520×520 input, ~160MB |
+| Task | Model | HuggingFace ID | Preset | Dynamic Batch | Notes |
+|---|---|---|---|---|---|
+| Classification | SqueezeNet 1.0 | `onnxmodelzoo/squeezenet1.0-7` | `ImageNet` | ❌ Fixed | 1000 ImageNet classes, ~5MB |
+| Classification | MobileNetV2 | `google/mobilenet_v2_1.0_224` | `ImageNet` | ✅ Dynamic | 1001 classes (incl. background), ~14MB |
+| Classification | ResNet-50 v1.7 | `microsoft/resnet-50` | `ImageNet` | ✅ Dynamic | 1000 classes, ~100MB |
+| Embeddings | CLIP ViT-B/32 | `openai/clip-vit-base-patch32` | `CLIP` | ✅ Dynamic | 512-dim embeddings |
+| Embeddings | DINOv2 ViT-S/14 | `facebook/dinov2-small` | `DINOv2` | ✅ Dynamic | 384-dim, self-supervised, ~85MB |
+| Detection | YOLOv8n | `ultralytics/yolov8n` | `YOLOv8` | ❌ Fixed | 80 COCO classes, fast |
+| Segmentation | SegFormer-B0 | `nvidia/segformer-b0-finetuned-ade-512-512` | `SegFormer` | ✅ Dynamic | 150 ADE20K classes |
+| Segmentation | DeepLabV3-ResNet50 | `pytorch/deeplabv3-resnet50` | Custom | ✅ Dynamic | 21 Pascal VOC classes, 520×520, ~160MB |
+| Zero-Shot | CLIP ViT-B/32 | `openai/clip-vit-base-patch32` | `CLIP` | ✅ Dynamic | Needs both vision + text encoders |
+
+**Dynamic Batch** indicates whether the model supports true tensor batching (multiple images in a single `session.Run()` call). Models with fixed batch fall back to a per-image loop. See [Architecture — Batch Inference](architecture.md#batch-inference) for details.
+
+### SqueezeNet 1.0
+
+```
+models/squeezenet/
+├── model.onnx                  ← SqueezeNet ONNX model (~5MB)
+└── imagenet_classes.txt        ← 1000 ImageNet class labels (one per line)
+```
+
+| Property | Value |
+|---|---|
+| Input name | `data_0` |
+| Input shape | `[1, 3, 224, 224]` (fixed batch) |
+| Output name | `softmaxout_1` |
+| Output shape | `[1, 1000, 1, 1]` |
+| Preset | `PreprocessorConfig.ImageNet` |
+| Dynamic Batch | ❌ No |
+
+### MobileNetV2
+
+```
+models/mobilenet/
+├── model.onnx                  ← MobileNetV2 ONNX model (~14MB)
+├── config.json                 ← model config (1001 classes including background)
+└── preprocessor_config.json    ← ImageNet preprocessing
+```
+
+| Property | Value |
+|---|---|
+| Input name | `pixel_values` |
+| Input shape | `[batch, 3, 224, 224]` (dynamic batch) |
+| Output name | `logits` |
+| Output shape | `[batch, 1001]` |
+| Preset | `PreprocessorConfig.ImageNet` |
+| Dynamic Batch | ✅ Yes |
 
 ### DINOv2 ViT-S/14
 
@@ -329,7 +365,7 @@ If you see a shape error, check that `PreprocessorConfig.ImageSize` matches the 
 
 ### Model has dynamic axes
 
-Some ONNX exports use dynamic axes (e.g., batch size = `-1`). This is fine — the library always sends batch size 1. If you see warnings about dynamic shapes, they can be safely ignored.
+Some ONNX exports use dynamic axes (e.g., batch size = `-1`). The library detects this via `ModelMetadataDiscovery.IsBatchDynamic` and uses true tensor batching for these models. If you see warnings about dynamic shapes, they can be safely ignored.
 
 ### Large model files
 
