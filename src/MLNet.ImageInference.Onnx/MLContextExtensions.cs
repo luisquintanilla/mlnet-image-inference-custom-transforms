@@ -1,6 +1,7 @@
 using Microsoft.ML;
 using MLNet.Image.Core;
 using MLNet.ImageInference.Onnx.Classification;
+using MLNet.ImageInference.Onnx.DepthEstimation;
 using MLNet.ImageInference.Onnx.Detection;
 using MLNet.ImageInference.Onnx.Embeddings;
 using MLNet.ImageInference.Onnx.Segmentation;
@@ -67,5 +68,16 @@ public static class MLContextExtensions
     {
         ArgumentNullException.ThrowIfNull(options);
         return new OnnxImageSegmentationEstimator(options);
+    }
+
+    /// <summary>
+    /// Create a depth estimation pipeline: preprocess → ONNX score → normalize → DepthMap.
+    /// </summary>
+    public static OnnxImageDepthEstimationEstimator OnnxImageDepthEstimation(
+        this TransformsCatalog catalog,
+        OnnxImageDepthEstimationOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        return new OnnxImageDepthEstimationEstimator(options);
     }
 }

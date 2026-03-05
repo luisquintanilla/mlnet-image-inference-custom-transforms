@@ -77,6 +77,27 @@ public record PreprocessorConfig
     public static PreprocessorConfig DINOv2 => ImageNet;
 
     /// <summary>
+    /// MiDaS v2.1 preset: ImageNet normalization, size=256x256.
+    /// </summary>
+    public static PreprocessorConfig MiDaS => new()
+    {
+        ImageSize = (256, 256),
+        CropSize = (256, 256),
+        DoCenterCrop = false
+    };
+
+    /// <summary>
+    /// DPT (Dense Prediction Transformer) preset: ImageNet normalization, size=384x384.
+    /// Used by Intel/dpt-hybrid-midas and Intel/dpt-large.
+    /// </summary>
+    public static PreprocessorConfig DPT => new()
+    {
+        ImageSize = (384, 384),
+        CropSize = (384, 384),
+        DoCenterCrop = false
+    };
+
+    /// <summary>
     /// YOLOv8 preset: no normalization, just rescale to [0, 1], size=640x640.
     /// </summary>
     public static PreprocessorConfig YOLOv8 => new()

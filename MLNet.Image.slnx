@@ -17,5 +17,6 @@
     <Project Path="samples/ObjectDetection/ObjectDetection.csproj" />
     <Project Path="samples/ImageSegmentation/ImageSegmentation.csproj" />
     <Project Path="samples/ZeroShotClassification/ZeroShotClassification.csproj" />
+    <Project Path="samples/DepthEstimation/DepthEstimation.csproj" />
   </Folder>
 </Solution>
