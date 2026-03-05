@@ -10,7 +10,7 @@ Custom ML.NET transforms for image inference and generation backed by local ONNX
 |---|---|---|
 | **MLNet.Image.Core** | Image preprocessing, `MLImage↔DataContent` conversion, result types (`BoundingBox`, `SegmentationMask`, `DepthMap`) | ✅ |
 | **MLNet.Image.Tokenizers** | CLIP tokenizer extending `Microsoft.ML.Tokenizers` | ✅ |
-| **MLNet.ImageInference.Onnx** | ML.NET transforms: classification, detection, segmentation, embeddings, zero-shot, depth estimation | ✅ |
+| **MLNet.ImageInference.Onnx** | ML.NET transforms: classification, detection, segmentation, embeddings, zero-shot, depth estimation, image captioning | ✅ |
 | **MLNet.ImageGeneration.OnnxGenAI** | Text-to-image generation (Stable Diffusion via OnnxRuntime) | ✅ |
 
 ## Quick Start
@@ -57,21 +57,45 @@ var embeddings = await generator.GenerateAsync([image]);
 
 ```csharp
 using MLNet.Image.Core;
-using MLNet.ImageInference.Onnx.Embeddings;
+using MLNet.ImageInference.Onnx.ZeroShot;
 
-// Encode image and candidate labels through CLIP, then compare via cosine similarity
-var embeddingOptions = new OnnxImageEmbeddingOptions
+var options = new OnnxZeroShotImageClassificationOptions
 {
-    ModelPath = "models/clip/model.onnx",
-    PreprocessorConfig = PreprocessorConfig.CLIP,
-    Pooling = PoolingStrategy.ClsToken,
-    Normalize = true
+    ImageModelPath = "models/clip/vision_model.onnx",
+    TextModelPath = "models/clip/text_model.onnx",
+    VocabPath = "models/clip/vocab.json",
+    MergesPath = "models/clip/merges.txt",
+    CandidateLabels = ["a photo of a cat", "a photo of a dog", "a photo of a bird"],
+    PreprocessorConfig = PreprocessorConfig.CLIP
 };
 
-using var transformer = new OnnxImageEmbeddingTransformer(embeddingOptions);
+using var transformer = new OnnxZeroShotImageClassificationTransformer(options);
 using var image = MLImage.CreateFromFile("photo.jpg");
-float[] imageEmbedding = transformer.GenerateEmbedding(image);
-// Compare with text embeddings of candidate labels via cosine similarity
+var results = transformer.Classify(image);
+
+foreach (var (label, probability) in results)
+    Console.WriteLine($"  {label}: {probability:P2}");
+```
+
+### Image Captioning with GIT
+
+```csharp
+using MLNet.Image.Core;
+using MLNet.ImageInference.Onnx.ImageCaptioning;
+
+var options = new OnnxImageCaptioningOptions
+{
+    EncoderModelPath = "models/git-coco/encoder.onnx",
+    DecoderModelPath = "models/git-coco/decoder.onnx",
+    VocabPath = "models/git-coco/vocab.txt",
+    PreprocessorConfig = PreprocessorConfig.GIT,
+    MaxLength = 50
+};
+
+using var transformer = new OnnxImageCaptioningTransformer(options);
+using var image = MLImage.CreateFromFile("photo.jpg");
+string caption = transformer.GenerateCaption(image);
+Console.WriteLine($"Caption: {caption}");
 ```
 
 ## Supported Tasks
@@ -84,6 +108,7 @@ float[] imageEmbedding = transformer.GenerateEmbedding(image);
 | Image Embeddings | ✅ | `MLNet.ImageInference.Onnx` | `IEmbeddingGenerator<MLImage, Embedding<float>>` |
 | Zero-Shot Classification | ✅ | `MLNet.ImageInference.Onnx` | — |
 | Depth Estimation | ✅ | `MLNet.ImageInference.Onnx` | — |
+| Image Captioning | ✅ | `MLNet.ImageInference.Onnx` | — |
 | Text-to-Image Generation | ✅ | `MLNet.ImageGeneration.OnnxGenAI` | — |
 
 ## Samples
@@ -96,6 +121,7 @@ float[] imageEmbedding = transformer.GenerateEmbedding(image);
 | Image Embeddings | CLIP/DINOv2 embeddings with MEAI integration | [`samples/ImageEmbeddings/`](samples/ImageEmbeddings/) |
 | Zero-Shot Classification | CLIP vision+text zero-shot classification | [`samples/ZeroShotClassification/`](samples/ZeroShotClassification/) |
 | Depth Estimation | MiDaS/DPT monocular depth estimation | [`samples/DepthEstimation/`](samples/DepthEstimation/) |
+| Image Captioning | GIT image-to-text captioning | [`samples/ImageCaptioning/`](samples/ImageCaptioning/) |
 | Text-to-Image | Stable Diffusion generation with direct + MEAI APIs | [`samples/TextToImage/`](samples/TextToImage/) |
 
 ## Architecture Overview
@@ -110,9 +136,11 @@ MLImage → ① Preprocess → ② ONNX Score → ③ PostProcess → Result
 |---|---|---|
 | ① Preprocess | `ImagePreprocessingTransformer` | Bilinear resize → Rescale → Per-channel Normalize → CHW tensor |
 | ② ONNX Score | `OnnxImageScoringTransformer` | `InferenceSession.Run()` with batch support |
-| ③ PostProcess | Task-specific | Softmax / Pooling+L2 / NMS / Argmax / Depth normalize |
+| ③ PostProcess | Task-specific | Softmax / Pooling+L2 / NMS / Argmax / Depth normalize / Autoregressive decode |
 
 Each task transformer composes the shared preprocessing and scoring sub-transforms with task-specific post-processing. Shared base classes (`OnnxImageCursorBase`, `OnnxImageDataViewBase`, `OnnxImageEstimatorBase`) eliminate duplication across all tasks.
+
+**Multi-model tasks** (Zero-Shot, Image Captioning) manage separate `OnnxSessionPool` instances — e.g., captioning uses a vision encoder + text decoder with autoregressive greedy token generation.
 
 ### Batch Inference
 
@@ -163,17 +191,17 @@ dotnet build MLNet.Image.slnx
 
 ## Testing
 
-**144 tests** across three test projects — all passing.
+**164 tests** across three test projects — all passing.
 
 | Test Project | Tests | Description |
 |---|---|---|
-| Core | 41 | Image preprocessing, conversions, result types |
+| Core | 45 | Image preprocessing, conversions, result types |
 | Tokenizers | 14 | CLIP tokenizer encoding/decoding |
-| Inference | 89 | End-to-end ONNX inference across 8+ models, all tasks (incl. batch) |
+| Inference | 105 | End-to-end ONNX inference across 9+ models, all tasks (incl. batch) |
 
 ### Tested Models
 
-All supported tasks are validated against real ONNX models across all preprocessor presets (ImageNet, CLIP, DINOv2, YOLOv8, SegFormer, MiDaS, DPT):
+All supported tasks are validated against real ONNX models across all preprocessor presets (ImageNet, CLIP, DINOv2, YOLOv8, SegFormer, MiDaS, DPT, GIT):
 
 | Model | Task | Notes |
 |---|---|---|
@@ -185,6 +213,8 @@ All supported tasks are validated against real ONNX models across all preprocess
 | DINOv2 ViT-S/14 | Embeddings | 384-dim, DINOv2 preset, self-supervised |
 | ResNet-50 v1.7 | Classification | 1000 ImageNet classes, dynamic batch |
 | DeepLabV3-ResNet50 | Segmentation | 21 Pascal VOC classes, 520×520 |
+| DPT-Hybrid (MiDaS) | Depth Estimation | Monocular depth, 384×384, ImageNet normalization |
+| GIT-base-COCO | Image Captioning | Autoregressive captioning, BERT WordPiece tokenizer |
 
 ## Related Projects
 
