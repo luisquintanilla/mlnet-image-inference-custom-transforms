@@ -12,30 +12,49 @@ namespace MLNet.ImageInference.Onnx.ZeroShot;
 /// <summary>
 /// Transformer that performs zero-shot image classification using CLIP:
 /// MLImage → vision encoder → image embedding, compared against pre-encoded text embeddings via cosine similarity.
+/// Composes ImagePreprocessingTransformer + OnnxImageScoringTransformer for the vision side;
+/// text encoding remains internal (CLIP-specific).
 /// </summary>
 public sealed class OnnxZeroShotImageClassificationTransformer : ITransformer, IDisposable
 {
     private readonly OnnxZeroShotImageClassificationOptions _options;
-    private readonly OnnxSessionPool _imageSessionPool;
+    private readonly ImagePreprocessingTransformer _preprocessor;
+    private readonly OnnxImageScoringTransformer _visionScorer;
     private readonly OnnxSessionPool _textSessionPool;
-    private readonly ModelMetadataDiscovery.ModelMetadata _imageMetadata;
     private readonly float[][] _textEmbeddings;
 
     public bool IsRowToRowMapper => true;
 
     public OnnxZeroShotImageClassificationTransformer(OnnxZeroShotImageClassificationOptions options)
+        : this(options,
+              new ImagePreprocessingTransformer(new ImagePreprocessingOptions
+              {
+                  InputColumnName = options.InputColumnName,
+                  PreprocessorConfig = options.PreprocessorConfig
+              }),
+              new OnnxImageScoringTransformer(new OnnxImageScoringOptions
+              {
+                  ModelPath = options.ImageModelPath,
+                  ImageHeight = options.PreprocessorConfig.ImageSize.Height,
+                  ImageWidth = options.PreprocessorConfig.ImageSize.Width,
+                  BatchSize = options.BatchSize
+              }))
+    {
+    }
+
+    internal OnnxZeroShotImageClassificationTransformer(
+        OnnxZeroShotImageClassificationOptions options,
+        ImagePreprocessingTransformer preprocessor,
+        OnnxImageScoringTransformer visionScorer)
     {
         _options = options;
+        _preprocessor = preprocessor;
+        _visionScorer = visionScorer;
 
-        // Create session pools for both encoders
-        _imageSessionPool = new OnnxSessionPool(options.ImageModelPath);
+        // Text side remains internal (CLIP-specific)
         _textSessionPool = new OnnxSessionPool(options.TextModelPath);
-
-        // Discover model metadata
-        _imageMetadata = ModelMetadataDiscovery.Discover(_imageSessionPool.Session);
         var textMetadata = ModelMetadataDiscovery.Discover(_textSessionPool.Session);
 
-        // Create tokenizer and pre-encode all candidate labels
         var tokenizer = ClipTokenizer.Create(options.VocabPath, options.MergesPath);
         _textEmbeddings = EncodeTexts(tokenizer, textMetadata, options.CandidateLabels);
     }
@@ -136,44 +155,67 @@ public sealed class OnnxZeroShotImageClassificationTransformer : ITransformer, I
     /// </summary>
     public (string Label, float Probability)[] Classify(MLImage image)
     {
-        // Preprocess image
-        var tensor = HuggingFaceImagePreprocessor.Preprocess(image, _options.PreprocessorConfig);
-        int height = _options.PreprocessorConfig.ImageSize.Height;
-        int width = _options.PreprocessorConfig.ImageSize.Width;
+        // Stage 1: Preprocess
+        var tensor = _preprocessor.Preprocess(image);
 
-        // Create ONNX input tensor [1, 3, H, W]
-        var inputTensor = new DenseTensor<float>(tensor, [1, 3, height, width]);
-        var inputs = new List<NamedOnnxValue>
+        // Stage 2: Score (vision encoder)
+        var output = _visionScorer.Score(tensor);
+
+        // Stage 3: Post-process (extract embedding + cosine similarity with text embeddings)
+        return PostProcess(output);
+    }
+
+    /// <summary>
+    /// Classifies a batch of images using zero-shot classification with pre-encoded labels.
+    /// Uses true tensor batching if the model supports dynamic batch, otherwise loops.
+    /// </summary>
+    public (string Label, float Probability)[][] ClassifyBatch(IReadOnlyList<MLImage> images)
+    {
+        if (images == null || images.Count == 0)
+            return Array.Empty<(string, float)[]>();
+
+        if (_visionScorer.IsBatchDynamic)
         {
-            NamedOnnxValue.CreateFromTensor(_imageMetadata.InputNames[0], inputTensor)
-        };
-
-        // Run vision encoder
-        using var results = _imageSessionPool.Session.Run(inputs);
-        var output = results.First().AsTensor<float>();
-
-        // Extract image embedding (CLS token or pooled output)
-        float[] imageEmbedding;
-        if (output.Dimensions.Length == 3)
-        {
-            // [1, seq_len, hidden_dim] — take CLS token (first token)
-            int hiddenDim = (int)output.Dimensions[2];
-            imageEmbedding = new float[hiddenDim];
-            for (int i = 0; i < hiddenDim; i++)
-            {
-                imageEmbedding[i] = output[0, 0, i];
-            }
+            return ClassifyBatchDynamic(images);
         }
         else
         {
-            // [1, hidden_dim] — already pooled
-            int hiddenDim = (int)output.Dimensions[^1];
-            imageEmbedding = new float[hiddenDim];
-            for (int i = 0; i < hiddenDim; i++)
-            {
-                imageEmbedding[i] = output[0, i];
-            }
+            var results = new (string Label, float Probability)[images.Count][];
+            for (int i = 0; i < images.Count; i++)
+                results[i] = Classify(images[i]);
+            return results;
         }
+    }
+
+    private (string Label, float Probability)[][] ClassifyBatchDynamic(IReadOnlyList<MLImage> images)
+    {
+        int n = images.Count;
+
+        // Stage 1: Batch preprocess
+        var batchTensor = _preprocessor.PreprocessBatch(images);
+
+        // Stage 2: Batch score (vision encoder)
+        var (output, _) = _visionScorer.ScoreBatch(batchTensor, n);
+
+        int hiddenDim = (int)_visionScorer.Metadata.OutputShapes[0][^1];
+        int outputPerImage = output.Length / n;
+        var batchResults = new (string Label, float Probability)[n][];
+
+        for (int i = 0; i < n; i++)
+        {
+            // Stage 3: Post-process each image's output
+            var imageOutput = output.AsSpan(i * outputPerImage, outputPerImage).ToArray();
+            batchResults[i] = PostProcess(imageOutput);
+        }
+
+        return batchResults;
+    }
+
+    private (string Label, float Probability)[] PostProcess(float[] visionOutput)
+    {
+        // Extract image embedding (first hiddenDim elements = CLS token or pooled output)
+        int hiddenDim = (int)_visionScorer.Metadata.OutputShapes[0][^1];
+        float[] imageEmbedding = visionOutput[..hiddenDim];
 
         // L2-normalize image embedding
         float norm = TensorPrimitives.Norm(imageEmbedding);
@@ -204,25 +246,9 @@ public sealed class OnnxZeroShotImageClassificationTransformer : ITransformer, I
         return predictions;
     }
 
-    /// <summary>
-    /// Classifies a batch of images using zero-shot classification with pre-encoded labels.
-    /// </summary>
-    public (string Label, float Probability)[][] ClassifyBatch(IReadOnlyList<MLImage> images)
-    {
-        if (images == null || images.Count == 0)
-            return Array.Empty<(string, float)[]>();
-
-        // Zero-shot scoring involves vision encoder + cosine similarity with pre-encoded text embeddings
-        // Loop individual calls — text embeddings are already cached
-        var results = new (string Label, float Probability)[images.Count][];
-        for (int i = 0; i < images.Count; i++)
-        {
-            results[i] = Classify(images[i]);
-        }
-        return results;
-    }
-
     internal OnnxZeroShotImageClassificationOptions Options => _options;
+    internal ImagePreprocessingTransformer Preprocessor => _preprocessor;
+    internal OnnxImageScoringTransformer VisionScorer => _visionScorer;
 
     public IDataView Transform(IDataView input)
     {
@@ -247,7 +273,7 @@ public sealed class OnnxZeroShotImageClassificationTransformer : ITransformer, I
 
     public void Dispose()
     {
-        _imageSessionPool?.Dispose();
+        _visionScorer?.Dispose();
         _textSessionPool?.Dispose();
     }
 }

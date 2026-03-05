@@ -14,7 +14,28 @@ public sealed class OnnxZeroShotImageClassificationEstimator
         : base(options) { }
 
     protected override OnnxZeroShotImageClassificationTransformer CreateTransformer()
-        => new(Options);
+    {
+        // Stage 1: Preprocessing
+        var preprocessOptions = new ImagePreprocessingOptions
+        {
+            InputColumnName = Options.InputColumnName,
+            PreprocessorConfig = Options.PreprocessorConfig
+        };
+        var preprocessor = new ImagePreprocessingEstimator(preprocessOptions).Fit(null!);
+
+        // Stage 2: ONNX Scoring (vision encoder)
+        var visionScorerOptions = new OnnxImageScoringOptions
+        {
+            ModelPath = Options.ImageModelPath,
+            ImageHeight = Options.PreprocessorConfig.ImageSize.Height,
+            ImageWidth = Options.PreprocessorConfig.ImageSize.Width,
+            BatchSize = Options.BatchSize
+        };
+        var visionScorer = new OnnxImageScoringEstimator(visionScorerOptions).Fit(null!);
+
+        // Compose vision stages (text encoding handled internally by transformer)
+        return new OnnxZeroShotImageClassificationTransformer(Options, preprocessor, visionScorer);
+    }
 
     protected override void ConfigureOutputSchema(IDictionary<string, SchemaShape.Column> columns)
     {

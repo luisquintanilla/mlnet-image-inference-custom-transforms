@@ -1,6 +1,5 @@
 using Microsoft.ML;
 using Microsoft.ML.Data;
-using Microsoft.ML.OnnxRuntime;
 using MLNet.Image.Core;
 using MLNet.ImageInference.Onnx.Shared;
 
@@ -8,20 +7,41 @@ namespace MLNet.ImageInference.Onnx.Segmentation;
 
 /// <summary>
 /// Transformer that performs image segmentation: MLImage → preprocessed tensor → ONNX → argmax → SegmentationMask.
+/// Composes ImagePreprocessingTransformer + OnnxImageScoringTransformer + argmax post-processing.
 /// </summary>
 public sealed class OnnxImageSegmentationTransformer : ITransformer, IDisposable
 {
     private readonly OnnxImageSegmentationOptions _options;
-    private readonly OnnxSessionPool _sessionPool;
-    private readonly ModelMetadataDiscovery.ModelMetadata _metadata;
+    private readonly ImagePreprocessingTransformer _preprocessor;
+    private readonly OnnxImageScoringTransformer _scorer;
 
     public bool IsRowToRowMapper => true;
 
     public OnnxImageSegmentationTransformer(OnnxImageSegmentationOptions options)
+        : this(options,
+              new ImagePreprocessingTransformer(new ImagePreprocessingOptions
+              {
+                  InputColumnName = options.InputColumnName,
+                  PreprocessorConfig = options.PreprocessorConfig
+              }),
+              new OnnxImageScoringTransformer(new OnnxImageScoringOptions
+              {
+                  ModelPath = options.ModelPath,
+                  ImageHeight = options.PreprocessorConfig.ImageSize.Height,
+                  ImageWidth = options.PreprocessorConfig.ImageSize.Width,
+                  BatchSize = options.BatchSize
+              }))
+    {
+    }
+
+    internal OnnxImageSegmentationTransformer(
+        OnnxImageSegmentationOptions options,
+        ImagePreprocessingTransformer preprocessor,
+        OnnxImageScoringTransformer scorer)
     {
         _options = options;
-        _sessionPool = new OnnxSessionPool(options.ModelPath);
-        _metadata = ModelMetadataDiscovery.Discover(_sessionPool.Session);
+        _preprocessor = preprocessor;
+        _scorer = scorer;
     }
 
     /// <summary>
@@ -29,30 +49,18 @@ public sealed class OnnxImageSegmentationTransformer : ITransformer, IDisposable
     /// </summary>
     public SegmentationMask Segment(MLImage image)
     {
-        var tensor = HuggingFaceImagePreprocessor.Preprocess(image, _options.PreprocessorConfig);
-        int height = _options.PreprocessorConfig.ImageSize.Height;
-        int width = _options.PreprocessorConfig.ImageSize.Width;
+        // Stage 1: Preprocess
+        var tensor = _preprocessor.Preprocess(image);
 
-        // Create ONNX input tensor [1, 3, H, W]
-        var inputTensor = new Microsoft.ML.OnnxRuntime.Tensors.DenseTensor<float>(tensor, [1, 3, height, width]);
-        var inputs = new List<NamedOnnxValue>
-        {
-            NamedOnnxValue.CreateFromTensor(_metadata.InputNames[0], inputTensor)
-        };
+        // Stage 2: Score (with dimensions for accurate output shape)
+        var (output, dims) = _scorer.ScoreWithDimensions(tensor);
 
-        // Run inference
-        using var results = _sessionPool.Session.Run(inputs);
-        var outputTensor = results.First().AsTensor<float>();
-        var output = outputTensor.ToArray();
+        // Stage 3: Post-process (argmax + optional resize)
+        // Actual output shape: [1, numClasses, outH, outW]
+        int numClasses = dims[1];
+        int outH = dims[2];
+        int outW = dims[3];
 
-        // Get actual output shape from the result tensor: [1, numClasses, outH, outW]
-        // This is reliable even when ONNX metadata reports -1 for dynamic axes.
-        var actualDims = outputTensor.Dimensions;
-        int numClasses = actualDims[1];
-        int outH = actualDims[2];
-        int outW = actualDims[3];
-
-        // Apply argmax post-processing with optional resize to original dimensions
         int? originalWidth = _options.ResizeToOriginal ? image.Width : null;
         int? originalHeight = _options.ResizeToOriginal ? image.Height : null;
 
@@ -60,24 +68,60 @@ public sealed class OnnxImageSegmentationTransformer : ITransformer, IDisposable
     }
 
     /// <summary>
-    /// Segments a batch of images.
+    /// Segments a batch of images. Uses true tensor batching if the model supports dynamic batch,
+    /// otherwise loops individual inference calls.
     /// </summary>
     public SegmentationMask[] SegmentBatch(IReadOnlyList<MLImage> images)
     {
         if (images == null || images.Count == 0)
             return Array.Empty<SegmentationMask>();
 
-        // Segmentation post-processing (argmax + resize) is per-image
-        // Loop individual calls for now — true batching is a future optimization
-        var results = new SegmentationMask[images.Count];
-        for (int i = 0; i < images.Count; i++)
+        if (_scorer.IsBatchDynamic)
         {
-            results[i] = Segment(images[i]);
+            return SegmentBatchDynamic(images);
         }
-        return results;
+        else
+        {
+            var results = new SegmentationMask[images.Count];
+            for (int i = 0; i < images.Count; i++)
+                results[i] = Segment(images[i]);
+            return results;
+        }
+    }
+
+    private SegmentationMask[] SegmentBatchDynamic(IReadOnlyList<MLImage> images)
+    {
+        int n = images.Count;
+
+        // Stage 1: Batch preprocess
+        var batchTensor = _preprocessor.PreprocessBatch(images);
+
+        // Stage 2: Batch score (with dimensions for accurate output shape)
+        var (output, _, dims) = _scorer.ScoreBatchWithDimensions(batchTensor, n);
+
+        // Actual output shape: [N, numClasses, outH, outW]
+        int numClasses = dims[1];
+        int outH = dims[2];
+        int outW = dims[3];
+
+        int outputPerImage = output.Length / n;
+        var batchResults = new SegmentationMask[n];
+
+        for (int i = 0; i < n; i++)
+        {
+            // Stage 3: Post-process each image's output
+            var imageOutput = output.AsSpan(i * outputPerImage, outputPerImage).ToArray();
+            int? origW = _options.ResizeToOriginal ? images[i].Width : null;
+            int? origH = _options.ResizeToOriginal ? images[i].Height : null;
+            batchResults[i] = MaskPostProcessor.Apply(imageOutput, numClasses, outH, outW, origW, origH, _options.Labels);
+        }
+
+        return batchResults;
     }
 
     internal OnnxImageSegmentationOptions Options => _options;
+    internal ImagePreprocessingTransformer Preprocessor => _preprocessor;
+    internal OnnxImageScoringTransformer Scorer => _scorer;
 
     public IDataView Transform(IDataView input)
     {
@@ -103,6 +147,6 @@ public sealed class OnnxImageSegmentationTransformer : ITransformer, IDisposable
 
     public void Dispose()
     {
-        _sessionPool?.Dispose();
+        _scorer?.Dispose();
     }
 }

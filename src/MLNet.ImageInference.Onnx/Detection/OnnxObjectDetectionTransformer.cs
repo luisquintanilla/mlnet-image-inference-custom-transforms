@@ -1,6 +1,5 @@
 using Microsoft.ML;
 using Microsoft.ML.Data;
-using Microsoft.ML.OnnxRuntime;
 using MLNet.Image.Core;
 using MLNet.ImageInference.Onnx.Shared;
 
@@ -8,20 +7,41 @@ namespace MLNet.ImageInference.Onnx.Detection;
 
 /// <summary>
 /// Transformer that performs object detection: MLImage → preprocessed tensor → ONNX → NMS → BoundingBox[].
+/// Composes ImagePreprocessingTransformer + OnnxImageScoringTransformer + NMS post-processing.
 /// </summary>
 public sealed class OnnxObjectDetectionTransformer : ITransformer, IDisposable
 {
     private readonly OnnxObjectDetectionOptions _options;
-    private readonly OnnxSessionPool _sessionPool;
-    private readonly ModelMetadataDiscovery.ModelMetadata _metadata;
+    private readonly ImagePreprocessingTransformer _preprocessor;
+    private readonly OnnxImageScoringTransformer _scorer;
 
     public bool IsRowToRowMapper => true;
 
     public OnnxObjectDetectionTransformer(OnnxObjectDetectionOptions options)
+        : this(options,
+              new ImagePreprocessingTransformer(new ImagePreprocessingOptions
+              {
+                  InputColumnName = options.InputColumnName,
+                  PreprocessorConfig = options.PreprocessorConfig
+              }),
+              new OnnxImageScoringTransformer(new OnnxImageScoringOptions
+              {
+                  ModelPath = options.ModelPath,
+                  ImageHeight = options.PreprocessorConfig.ImageSize.Height,
+                  ImageWidth = options.PreprocessorConfig.ImageSize.Width,
+                  BatchSize = options.BatchSize
+              }))
+    {
+    }
+
+    internal OnnxObjectDetectionTransformer(
+        OnnxObjectDetectionOptions options,
+        ImagePreprocessingTransformer preprocessor,
+        OnnxImageScoringTransformer scorer)
     {
         _options = options;
-        _sessionPool = new OnnxSessionPool(options.ModelPath);
-        _metadata = ModelMetadataDiscovery.Discover(_sessionPool.Session);
+        _preprocessor = preprocessor;
+        _scorer = scorer;
     }
 
     /// <summary>
@@ -29,23 +49,65 @@ public sealed class OnnxObjectDetectionTransformer : ITransformer, IDisposable
     /// </summary>
     public BoundingBox[] Detect(MLImage image)
     {
-        var tensor = HuggingFaceImagePreprocessor.Preprocess(image, _options.PreprocessorConfig);
-        int height = _options.PreprocessorConfig.ImageSize.Height;
-        int width = _options.PreprocessorConfig.ImageSize.Width;
+        // Stage 1: Preprocess
+        var tensor = _preprocessor.Preprocess(image);
 
-        // Create ONNX input tensor [1, 3, H, W]
-        var inputTensor = new Microsoft.ML.OnnxRuntime.Tensors.DenseTensor<float>(tensor, [1, 3, height, width]);
-        var inputs = new List<NamedOnnxValue>
+        // Stage 2: Score
+        var output = _scorer.Score(tensor);
+
+        // Stage 3: Post-process (NMS)
+        return PostProcess(output);
+    }
+
+    /// <summary>
+    /// Detects objects in a batch of images. Uses true tensor batching if the model supports dynamic batch,
+    /// otherwise loops individual inference calls.
+    /// </summary>
+    public BoundingBox[][] DetectBatch(IReadOnlyList<MLImage> images)
+    {
+        if (images == null || images.Count == 0)
+            return Array.Empty<BoundingBox[]>();
+
+        if (_scorer.IsBatchDynamic)
         {
-            NamedOnnxValue.CreateFromTensor(_metadata.InputNames[0], inputTensor)
-        };
+            return DetectBatchDynamic(images);
+        }
+        else
+        {
+            var results = new BoundingBox[images.Count][];
+            for (int i = 0; i < images.Count; i++)
+                results[i] = Detect(images[i]);
+            return results;
+        }
+    }
 
-        // Run inference
-        using var results = _sessionPool.Session.Run(inputs);
-        var output = results.First().AsEnumerable<float>().ToArray();
+    private BoundingBox[][] DetectBatchDynamic(IReadOnlyList<MLImage> images)
+    {
+        int n = images.Count;
 
+        // Stage 1: Batch preprocess
+        var batchTensor = _preprocessor.PreprocessBatch(images);
+
+        // Stage 2: Batch score
+        var (output, _) = _scorer.ScoreBatch(batchTensor, n);
+
+        int outputPerImage = output.Length / n;
+        var batchResults = new BoundingBox[n][];
+
+        for (int i = 0; i < n; i++)
+        {
+            // Stage 3: Post-process each image's output
+            var imageOutput = output.AsSpan(i * outputPerImage, outputPerImage).ToArray();
+            batchResults[i] = PostProcess(imageOutput);
+        }
+
+        return batchResults;
+    }
+
+    private BoundingBox[] PostProcess(float[] output)
+    {
         // Determine dimensions from model output shape: [1, numClasses+4, numBoxes]
-        var outputShape = _metadata.OutputShapes[0];
+        var outputShape = _scorer.Metadata.OutputShapes[0];
         int numClasses = (int)outputShape[1] - 4;
         int numBoxes = (int)outputShape[2];
 
@@ -67,25 +129,9 @@ public sealed class OnnxObjectDetectionTransformer : ITransformer, IDisposable
         return detections;
     }
 
-    /// <summary>
-    /// Detects objects in a batch of images.
-    /// </summary>
-    public BoundingBox[][] DetectBatch(IReadOnlyList<MLImage> images)
-    {
-        if (images == null || images.Count == 0)
-            return Array.Empty<BoundingBox[]>();
-
-        // Detection models (YOLO) typically have fixed batch=1, so just loop
-        // True batching for detection is complex due to NMS being per-image
-        var results = new BoundingBox[images.Count][];
-        for (int i = 0; i < images.Count; i++)
-        {
-            results[i] = Detect(images[i]);
-        }
-        return results;
-    }
-
     internal OnnxObjectDetectionOptions Options => _options;
+    internal ImagePreprocessingTransformer Preprocessor => _preprocessor;
+    internal OnnxImageScoringTransformer Scorer => _scorer;
 
     public IDataView Transform(IDataView input)
     {
@@ -110,6 +156,6 @@ public sealed class OnnxObjectDetectionTransformer : ITransformer, IDisposable
 
     public void Dispose()
     {
-        _sessionPool?.Dispose();
+        _scorer?.Dispose();
     }
 }

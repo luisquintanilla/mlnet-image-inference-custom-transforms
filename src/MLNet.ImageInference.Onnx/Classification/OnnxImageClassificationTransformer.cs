@@ -10,20 +10,41 @@ namespace MLNet.ImageInference.Onnx.Classification;
 
 /// <summary>
 /// Transformer that performs image classification: MLImage → preprocessed tensor → ONNX → softmax → label.
+/// Composes ImagePreprocessingTransformer + OnnxImageScoringTransformer + classification post-processing.
 /// </summary>
 public sealed class OnnxImageClassificationTransformer : ITransformer, IDisposable
 {
     private readonly OnnxImageClassificationOptions _options;
-    private readonly OnnxSessionPool _sessionPool;
-    private readonly ModelMetadataDiscovery.ModelMetadata _metadata;
+    private readonly ImagePreprocessingTransformer _preprocessor;
+    private readonly OnnxImageScoringTransformer _scorer;
 
     public bool IsRowToRowMapper => true;
 
     public OnnxImageClassificationTransformer(OnnxImageClassificationOptions options)
+        : this(options,
+              new ImagePreprocessingTransformer(new ImagePreprocessingOptions
+              {
+                  InputColumnName = options.InputColumnName,
+                  PreprocessorConfig = options.PreprocessorConfig
+              }),
+              new OnnxImageScoringTransformer(new OnnxImageScoringOptions
+              {
+                  ModelPath = options.ModelPath,
+                  ImageHeight = options.PreprocessorConfig.ImageSize.Height,
+                  ImageWidth = options.PreprocessorConfig.ImageSize.Width,
+                  BatchSize = options.BatchSize
+              }))
+    {
+    }
+
+    internal OnnxImageClassificationTransformer(
+        OnnxImageClassificationOptions options,
+        ImagePreprocessingTransformer preprocessor,
+        OnnxImageScoringTransformer scorer)
     {
         _options = options;
-        _sessionPool = new OnnxSessionPool(options.ModelPath);
-        _metadata = ModelMetadataDiscovery.Discover(_sessionPool.Session);
+        _preprocessor = preprocessor;
+        _scorer = scorer;
     }
 
     /// <summary>
@@ -31,21 +52,63 @@ public sealed class OnnxImageClassificationTransformer : ITransformer, IDisposab
     /// </summary>
     public (string Label, float Probability)[] Classify(MLImage image)
     {
-        var tensor = HuggingFaceImagePreprocessor.Preprocess(image, _options.PreprocessorConfig);
-        int height = _options.PreprocessorConfig.ImageSize.Height;
-        int width = _options.PreprocessorConfig.ImageSize.Width;
+        // Stage 1: Preprocess
+        var tensor = _preprocessor.Preprocess(image);
 
-        // Create ONNX input tensor [1, 3, H, W]
-        var inputTensor = new DenseTensor<float>(tensor, [1, 3, height, width]);
-        var inputs = new List<NamedOnnxValue>
+        // Stage 2: Score
+        var output = _scorer.Score(tensor);
+
+        // Stage 3: Post-process (softmax + labels)
+        return PostProcess(output);
+    }
+
+    /// <summary>
+    /// Classifies a batch of images. Uses true tensor batching if the model supports dynamic batch,
+    /// otherwise loops individual inference calls.
+    /// </summary>
+    public (string Label, float Probability)[][] ClassifyBatch(IReadOnlyList<MLImage> images)
+    {
+        if (images == null || images.Count == 0)
+            return Array.Empty<(string, float)[]>();
+
+        if (_scorer.IsBatchDynamic)
         {
-            NamedOnnxValue.CreateFromTensor(_metadata.InputNames[0], inputTensor)
-        };
+            return ClassifyBatchDynamic(images);
+        }
+        else
+        {
+            var results = new (string Label, float Probability)[images.Count][];
+            for (int i = 0; i < images.Count; i++)
+                results[i] = Classify(images[i]);
+            return results;
+        }
+    }
 
-        // Run inference
-        using var results = _sessionPool.Session.Run(inputs);
-        var output = results.First().AsEnumerable<float>().ToArray();
+    private (string Label, float Probability)[][] ClassifyBatchDynamic(IReadOnlyList<MLImage> images)
+    {
+        int n = images.Count;
 
+        // Stage 1: Batch preprocess
+        var batchTensor = _preprocessor.PreprocessBatch(images);
+
+        // Stage 2: Batch score
+        var (output, _) = _scorer.ScoreBatch(batchTensor, n);
+
+        int numClasses = output.Length / n;
+        var batchResults = new (string Label, float Probability)[n][];
+
+        for (int i = 0; i < n; i++)
+        {
+            // Stage 3: Post-process each image's output
+            var logits = output.AsSpan(i * numClasses, numClasses).ToArray();
+            batchResults[i] = PostProcess(logits);
+        }
+
+        return batchResults;
+    }
+
+    private (string Label, float Probability)[] PostProcess(float[] output)
+    {
         // Apply softmax
         var probabilities = new float[output.Length];
         TensorPrimitives.SoftMax(output, probabilities);
@@ -65,95 +128,18 @@ public sealed class OnnxImageClassificationTransformer : ITransformer, IDisposab
 
         // Apply TopK if specified
         if (_options.TopK.HasValue && _options.TopK.Value < predictions.Length)
-        {
             predictions = predictions[.._options.TopK.Value];
-        }
 
         return predictions;
     }
 
-    /// <summary>
-    /// Classifies a batch of images. Uses true tensor batching if the model supports dynamic batch,
-    /// otherwise loops individual inference calls.
-    /// </summary>
-    public (string Label, float Probability)[][] ClassifyBatch(IReadOnlyList<MLImage> images)
-    {
-        if (images == null || images.Count == 0)
-            return Array.Empty<(string, float)[]>();
-
-        if (_metadata.IsBatchDynamic)
-        {
-            return ClassifyBatchDynamic(images);
-        }
-        else
-        {
-            // Fixed batch model — loop individual calls
-            var results = new (string Label, float Probability)[images.Count][];
-            for (int i = 0; i < images.Count; i++)
-            {
-                results[i] = Classify(images[i]);
-            }
-            return results;
-        }
-    }
-
-    private (string Label, float Probability)[][] ClassifyBatchDynamic(IReadOnlyList<MLImage> images)
-    {
-        int n = images.Count;
-        int height = _options.PreprocessorConfig.ImageSize.Height;
-        int width = _options.PreprocessorConfig.ImageSize.Width;
-
-        // Preprocess all images into a contiguous [N, 3, H, W] float array
-        var batchTensor = HuggingFaceImagePreprocessor.PreprocessBatch(images, _options.PreprocessorConfig);
-
-        // Create ONNX input tensor [N, 3, H, W]
-        var inputTensor = new DenseTensor<float>(batchTensor, [n, 3, height, width]);
-        var inputs = new List<NamedOnnxValue>
-        {
-            NamedOnnxValue.CreateFromTensor(_metadata.InputNames[0], inputTensor)
-        };
-
-        // Run inference once for the entire batch
-        using var results = _sessionPool.Session.Run(inputs);
-        var output = results.First().AsEnumerable<float>().ToArray();
-
-        int numClasses = output.Length / n;
-        var batchResults = new (string Label, float Probability)[n][];
-
-        for (int i = 0; i < n; i++)
-        {
-            // Extract logits for this image
-            var logits = output.AsSpan(i * numClasses, numClasses);
-            var probabilities = new float[numClasses];
-            TensorPrimitives.SoftMax(logits, probabilities);
-
-            // Build predictions
-            var predictions = new (string Label, float Probability)[numClasses];
-            for (int j = 0; j < numClasses; j++)
-            {
-                string label = _options.Labels is not null && j < _options.Labels.Length
-                    ? _options.Labels[j]
-                    : j.ToString();
-                predictions[j] = (label, probabilities[j]);
-            }
-
-            // Sort by probability descending
-            Array.Sort(predictions, (a, b) => b.Probability.CompareTo(a.Probability));
-
-            // Apply TopK if specified
-            if (_options.TopK.HasValue && _options.TopK.Value < predictions.Length)
-            {
-                predictions = predictions[.._options.TopK.Value];
-            }
-
-            batchResults[i] = predictions;
-        }
-
-        return batchResults;
-    }
-
     internal OnnxImageClassificationOptions Options => _options;
+    internal ImagePreprocessingTransformer Preprocessor => _preprocessor;
+    internal OnnxImageScoringTransformer Scorer => _scorer;
 
+    /// <summary>
+    /// Creates a composed IDataView pipeline: preprocess → score → post-process.
+    /// </summary>
     public IDataView Transform(IDataView input)
     {
         return new ClassificationDataView(input, this);
@@ -178,6 +164,6 @@ public sealed class OnnxImageClassificationTransformer : ITransformer, IDisposab
 
     public void Dispose()
     {
-        _sessionPool?.Dispose();
+        _scorer?.Dispose();
     }
 }

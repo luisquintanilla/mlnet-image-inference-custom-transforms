@@ -1,7 +1,5 @@
 using Microsoft.ML;
 using Microsoft.ML.Data;
-using Microsoft.ML.OnnxRuntime;
-using Microsoft.ML.OnnxRuntime.Tensors;
 using MLNet.Image.Core;
 using MLNet.ImageInference.Onnx.Shared;
 using System.Numerics.Tensors;
@@ -10,12 +8,13 @@ namespace MLNet.ImageInference.Onnx.Embeddings;
 
 /// <summary>
 /// Transformer that produces image embeddings: MLImage → preprocessed tensor → ONNX → pooling → float[] vector.
+/// Composes ImagePreprocessingTransformer + OnnxImageScoringTransformer + pooling/normalization post-processing.
 /// </summary>
 public sealed class OnnxImageEmbeddingTransformer : ITransformer, IDisposable
 {
     private readonly OnnxImageEmbeddingOptions _options;
-    private readonly OnnxSessionPool _sessionPool;
-    private readonly ModelMetadataDiscovery.ModelMetadata _metadata;
+    private readonly ImagePreprocessingTransformer _preprocessor;
+    private readonly OnnxImageScoringTransformer _scorer;
 
     public bool IsRowToRowMapper => true;
 
@@ -25,14 +24,33 @@ public sealed class OnnxImageEmbeddingTransformer : ITransformer, IDisposable
     public int EmbeddingDimension { get; }
 
     public OnnxImageEmbeddingTransformer(OnnxImageEmbeddingOptions options)
+        : this(options,
+              new ImagePreprocessingTransformer(new ImagePreprocessingOptions
+              {
+                  InputColumnName = options.InputColumnName,
+                  PreprocessorConfig = options.PreprocessorConfig
+              }),
+              new OnnxImageScoringTransformer(new OnnxImageScoringOptions
+              {
+                  ModelPath = options.ModelPath,
+                  ImageHeight = options.PreprocessorConfig.ImageSize.Height,
+                  ImageWidth = options.PreprocessorConfig.ImageSize.Width,
+                  BatchSize = options.BatchSize
+              }))
+    {
+    }
+
+    internal OnnxImageEmbeddingTransformer(
+        OnnxImageEmbeddingOptions options,
+        ImagePreprocessingTransformer preprocessor,
+        OnnxImageScoringTransformer scorer)
     {
         _options = options;
-        _sessionPool = new OnnxSessionPool(options.ModelPath);
-        _metadata = ModelMetadataDiscovery.Discover(_sessionPool.Session);
+        _preprocessor = preprocessor;
+        _scorer = scorer;
 
         // Discover embedding dimension from output shape
-        var outputShape = _metadata.OutputShapes[0];
-        EmbeddingDimension = (int)outputShape[^1]; // Last dimension is embedding size
+        EmbeddingDimension = (int)scorer.Metadata.OutputShapes[0][^1];
     }
 
     /// <summary>
@@ -56,7 +74,7 @@ public sealed class OnnxImageEmbeddingTransformer : ITransformer, IDisposable
         if (images == null || images.Count == 0)
             return Array.Empty<float[]>();
 
-        if (_metadata.IsBatchDynamic)
+        if (_scorer.IsBatchDynamic)
         {
             return GenerateEmbeddingBatchDynamic(images);
         }
@@ -76,21 +94,41 @@ public sealed class OnnxImageEmbeddingTransformer : ITransformer, IDisposable
     /// </summary>
     public float[] GenerateEmbedding(MLImage image)
     {
-        var tensor = HuggingFaceImagePreprocessor.Preprocess(image, _options.PreprocessorConfig);
-        int height = _options.PreprocessorConfig.ImageSize.Height;
-        int width = _options.PreprocessorConfig.ImageSize.Width;
+        // Stage 1: Preprocess
+        var tensor = _preprocessor.Preprocess(image);
 
-        // Create ONNX input tensor [1, 3, H, W]
-        var inputTensor = new DenseTensor<float>(tensor, [1, 3, height, width]);
-        var inputs = new List<NamedOnnxValue>
+        // Stage 2: Score
+        var output = _scorer.Score(tensor);
+
+        // Stage 3: Post-process (pool + normalize)
+        return PostProcess(output);
+    }
+
+    private float[][] GenerateEmbeddingBatchDynamic(IReadOnlyList<MLImage> images)
+    {
+        int n = images.Count;
+
+        // Stage 1: Batch preprocess
+        var batchData = _preprocessor.PreprocessBatch(images);
+
+        // Stage 2: Batch score
+        var (output, _) = _scorer.ScoreBatch(batchData, n);
+
+        int outputPerImage = output.Length / n;
+        var embeddings = new float[n][];
+
+        for (int i = 0; i < n; i++)
         {
-            NamedOnnxValue.CreateFromTensor(_metadata.InputNames[0], inputTensor)
-        };
+            // Stage 3: Post-process each image's output
+            var imageOutput = output.AsSpan(i * outputPerImage, outputPerImage).ToArray();
+            embeddings[i] = PostProcess(imageOutput);
+        }
 
-        // Run inference
-        using var results = _sessionPool.Session.Run(inputs);
-        var output = results.First().AsTensor<float>();
+        return embeddings;
+    }
 
+    private float[] PostProcess(float[] output)
+    {
         // Pool the output
         float[] embedding = _options.Pooling switch
         {
@@ -112,75 +150,17 @@ public sealed class OnnxImageEmbeddingTransformer : ITransformer, IDisposable
         return embedding;
     }
 
-    private float[][] GenerateEmbeddingBatchDynamic(IReadOnlyList<MLImage> images)
+    private float[] ExtractClsToken(float[] output)
     {
-        int n = images.Count;
-        int height = _options.PreprocessorConfig.ImageSize.Height;
-        int width = _options.PreprocessorConfig.ImageSize.Width;
-
-        var batchData = HuggingFaceImagePreprocessor.PreprocessBatch(images, _options.PreprocessorConfig);
-        var inputTensor = new DenseTensor<float>(batchData, [n, 3, height, width]);
-        var inputs = new List<NamedOnnxValue>
-        {
-            NamedOnnxValue.CreateFromTensor(_metadata.InputNames[0], inputTensor)
-        };
-
-        using var results = _sessionPool.Session.Run(inputs);
-        var output = results.First().AsTensor<float>();
-
-        var embeddings = new float[n][];
-        for (int i = 0; i < n; i++)
-        {
-            float[] embedding = _options.Pooling switch
-            {
-                PoolingStrategy.ClsToken => ExtractClsTokenAtIndex(output, i),
-                PoolingStrategy.MeanPooling => MeanPoolAtIndex(output, i),
-                _ => ExtractClsTokenAtIndex(output, i)
-            };
-
-            if (_options.Normalize)
-            {
-                float norm = TensorPrimitives.Norm(embedding);
-                if (norm > 0)
-                {
-                    TensorPrimitives.Divide(embedding, norm, embedding);
-                }
-            }
-
-            embeddings[i] = embedding;
-        }
-
-        return embeddings;
+        // CLS token is always the first EmbeddingDimension elements in the flat array.
+        // Works for both [1, hidden_dim] and [1, seq_len, hidden_dim] layouts.
+        return output[..EmbeddingDimension];
     }
 
-    private float[] ExtractClsTokenAtIndex(Microsoft.ML.OnnxRuntime.Tensors.Tensor<float> output, int batchIndex)
+    private float[] MeanPool(float[] output)
     {
-        int dims = output.Dimensions.Length;
-        if (dims == 2)
-        {
-            // [N, hidden_dim]
-            var result = new float[EmbeddingDimension];
-            for (int i = 0; i < EmbeddingDimension; i++)
-            {
-                result[i] = output[batchIndex, i];
-            }
-            return result;
-        }
-        else
-        {
-            // [N, seq_len, hidden_dim] — take first token (CLS)
-            var result = new float[EmbeddingDimension];
-            for (int i = 0; i < EmbeddingDimension; i++)
-            {
-                result[i] = output[batchIndex, 0, i];
-            }
-            return result;
-        }
-    }
-
-    private float[] MeanPoolAtIndex(Microsoft.ML.OnnxRuntime.Tensors.Tensor<float> output, int batchIndex)
-    {
-        int seqLen = output.Dimensions.Length > 2 ? (int)output.Dimensions[1] : 1;
+        // Output shape: [1, seq_len, hidden_dim] or [1, hidden_dim]
+        int seqLen = output.Length / EmbeddingDimension;
         var result = new float[EmbeddingDimension];
 
         for (int i = 0; i < EmbeddingDimension; i++)
@@ -188,47 +168,7 @@ public sealed class OnnxImageEmbeddingTransformer : ITransformer, IDisposable
             float sum = 0;
             for (int s = 0; s < seqLen; s++)
             {
-                sum += output[batchIndex, s, i];
-            }
-            result[i] = sum / seqLen;
-        }
-
-        return result;
-    }
-
-    private float[] ExtractClsToken(Microsoft.ML.OnnxRuntime.Tensors.Tensor<float> output)
-    {
-        // Output shape is typically [1, seq_len, hidden_dim] or [1, hidden_dim]
-        int dims = output.Dimensions.Length;
-        if (dims == 2)
-        {
-            // [1, hidden_dim] — already a single vector
-            return output.ToArray()[..EmbeddingDimension];
-        }
-        else
-        {
-            // [1, seq_len, hidden_dim] — take first token (CLS)
-            var result = new float[EmbeddingDimension];
-            for (int i = 0; i < EmbeddingDimension; i++)
-            {
-                result[i] = output[0, 0, i];
-            }
-            return result;
-        }
-    }
-
-    private float[] MeanPool(Microsoft.ML.OnnxRuntime.Tensors.Tensor<float> output)
-    {
-        // Output shape: [1, seq_len, hidden_dim]
-        int seqLen = output.Dimensions.Length > 2 ? (int)output.Dimensions[1] : 1;
-        var result = new float[EmbeddingDimension];
-
-        for (int i = 0; i < EmbeddingDimension; i++)
-        {
-            float sum = 0;
-            for (int s = 0; s < seqLen; s++)
-            {
-                sum += output[0, s, i];
+                sum += output[s * EmbeddingDimension + i];
             }
             result[i] = sum / seqLen;
         }
@@ -237,6 +177,8 @@ public sealed class OnnxImageEmbeddingTransformer : ITransformer, IDisposable
     }
 
     internal OnnxImageEmbeddingOptions Options => _options;
+    internal ImagePreprocessingTransformer Preprocessor => _preprocessor;
+    internal OnnxImageScoringTransformer Scorer => _scorer;
 
     public IDataView Transform(IDataView input)
     {
@@ -262,6 +204,6 @@ public sealed class OnnxImageEmbeddingTransformer : ITransformer, IDisposable
 
     public void Dispose()
     {
-        _sessionPool?.Dispose();
+        _scorer?.Dispose();
     }
 }
