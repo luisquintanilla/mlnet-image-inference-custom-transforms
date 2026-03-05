@@ -36,7 +36,7 @@ public class EmbeddingIntegrationTests : IDisposable
     [Fact]
     public void EmbeddingDimension_Is512()
     {
-        if (!ModelExists) return;
+        Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");
 
         var transformer = new OnnxImageEmbeddingTransformer(CreateOptions());
         _disposables.Add(transformer);
@@ -47,7 +47,7 @@ public class EmbeddingIntegrationTests : IDisposable
     [Fact]
     public void GenerateEmbedding_ReturnsValidVector()
     {
-        if (!ModelExists) return;
+        Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");
 
         var transformer = new OnnxImageEmbeddingTransformer(CreateOptions());
         _disposables.Add(transformer);
@@ -70,7 +70,7 @@ public class EmbeddingIntegrationTests : IDisposable
     [Fact]
     public void DifferentImages_ProduceDifferentEmbeddings()
     {
-        if (!ModelExists) return;
+        Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");
 
         var transformer = new OnnxImageEmbeddingTransformer(CreateOptions());
         _disposables.Add(transformer);
@@ -93,7 +93,7 @@ public class EmbeddingIntegrationTests : IDisposable
     [Fact]
     public async Task MEAIGenerator_GenerateAsync_ReturnsEmbeddings()
     {
-        if (!ModelExists) return;
+        Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");
 
         var transformer = new OnnxImageEmbeddingTransformer(CreateOptions());
         _disposables.Add(transformer);
@@ -117,7 +117,7 @@ public class EmbeddingIntegrationTests : IDisposable
     [Fact]
     public void Transform_IDataView_ProducesEmbeddingColumn()
     {
-        if (!ModelExists) return;
+        Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");
 
         var transformer = new OnnxImageEmbeddingTransformer(CreateOptions());
         _disposables.Add(transformer);

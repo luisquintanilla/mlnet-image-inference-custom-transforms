@@ -32,7 +32,7 @@ public class ClassificationIntegrationTests : IDisposable
     [Fact]
     public void ModelMetadata_HasExpectedInputOutput()
     {
-        if (!ModelExists) return;
+        Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");
 
         var meta = ModelMetadataDiscovery.Discover(ModelPath);
 
@@ -52,7 +52,7 @@ public class ClassificationIntegrationTests : IDisposable
     [Fact]
     public void Classify_WithRealModel_ReturnsValidProbabilities()
     {
-        if (!ModelExists) return;
+        Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");
 
         var labels = LoadLabels();
         var options = new OnnxImageClassificationOptions
@@ -92,7 +92,7 @@ public class ClassificationIntegrationTests : IDisposable
     [Fact]
     public void Classify_AllProbabilities_SumToOne()
     {
-        if (!ModelExists) return;
+        Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");
 
         var options = new OnnxImageClassificationOptions
         {
@@ -116,7 +116,7 @@ public class ClassificationIntegrationTests : IDisposable
     [Fact]
     public void Transform_IDataView_ReturnsResults()
     {
-        if (!ModelExists) return;
+        Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");
 
         var labels = LoadLabels();
         var options = new OnnxImageClassificationOptions

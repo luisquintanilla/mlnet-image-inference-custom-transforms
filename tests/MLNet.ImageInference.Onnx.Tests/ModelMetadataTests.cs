@@ -14,7 +14,7 @@ public class ModelMetadataTests
     [Fact]
     public void IsBatchDynamic_WithDynamicModel_ReturnsTrue()
     {
-        if (!File.Exists(MobileNetModelPath)) return;
+        Skip.Unless(File.Exists(MobileNetModelPath), "Model file not available - run scripts/download-test-models.ps1");
 
         var meta = ModelMetadataDiscovery.Discover(MobileNetModelPath);
 
@@ -24,7 +24,7 @@ public class ModelMetadataTests
     [Fact]
     public void IsBatchDynamic_WithFixedModel_ReturnsFalse()
     {
-        if (!File.Exists(SqueezeNetModelPath)) return;
+        Skip.Unless(File.Exists(SqueezeNetModelPath), "Model file not available - run scripts/download-test-models.ps1");
 
         var meta = ModelMetadataDiscovery.Discover(SqueezeNetModelPath);
 

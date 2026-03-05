@@ -63,7 +63,7 @@ public class ZeroShotIntegrationTests : IDisposable
     [Fact]
     public void BothModels_LoadCorrectly()
     {
-        if (!ModelsExist) return;
+        Skip.Unless(ModelsExist, "Model files not available - run scripts/download-test-models.ps1");
 
         var transformer = CreateTransformer();
 
@@ -74,7 +74,7 @@ public class ZeroShotIntegrationTests : IDisposable
     [Fact]
     public void Classify_ReturnsProbabilitiesThatSumToOne()
     {
-        if (!ModelsExist) return;
+        Skip.Unless(ModelsExist, "Model files not available - run scripts/download-test-models.ps1");
 
         var transformer = CreateTransformer();
         using var image = CreateTestImage(224, 224);
@@ -100,7 +100,7 @@ public class ZeroShotIntegrationTests : IDisposable
     [Fact]
     public void Classify_ResultsAreSortedDescending()
     {
-        if (!ModelsExist) return;
+        Skip.Unless(ModelsExist, "Model files not available - run scripts/download-test-models.ps1");
 
         var transformer = CreateTransformer();
         using var image = CreateTestImage(224, 224);
@@ -119,7 +119,7 @@ public class ZeroShotIntegrationTests : IDisposable
     [Fact]
     public void Classify_TopK_ReturnsRequestedCount()
     {
-        if (!ModelsExist) return;
+        Skip.Unless(ModelsExist, "Model files not available - run scripts/download-test-models.ps1");
 
         var transformer = CreateTransformer(topK: 2);
         using var image = CreateTestImage(224, 224);

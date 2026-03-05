@@ -29,7 +29,7 @@ public class MobileNetIntegrationTests : IDisposable
     [Fact]
     public void ModelMetadata_HasExpectedInputOutput()
     {
-        if (!ModelExists) return;
+        Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");
 
         var meta = ModelMetadataDiscovery.Discover(ModelPath);
 
@@ -52,7 +52,7 @@ public class MobileNetIntegrationTests : IDisposable
     [Fact]
     public void Classify_WithRealModel_ReturnsValidProbabilities()
     {
-        if (!ModelExists) return;
+        Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");
 
         var options = new OnnxImageClassificationOptions
         {
@@ -89,7 +89,7 @@ public class MobileNetIntegrationTests : IDisposable
     [Fact]
     public void Classify_AllClasses_Returns1001Entries()
     {
-        if (!ModelExists) return;
+        Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");
 
         var options = new OnnxImageClassificationOptions
         {
@@ -115,7 +115,7 @@ public class MobileNetIntegrationTests : IDisposable
     [Fact]
     public void Classify_TopK_ReturnsExactCount()
     {
-        if (!ModelExists) return;
+        Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");
 
         var options = new OnnxImageClassificationOptions
         {
@@ -137,10 +137,10 @@ public class MobileNetIntegrationTests : IDisposable
     [Fact]
     public void Classify_DifferentFromSqueezeNet_PipelineGeneralizes()
     {
-        if (!ModelExists) return;
+        Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");
 
         const string squeezeNetPath = "models/squeezenet/model.onnx";
-        if (!File.Exists(squeezeNetPath)) return;
+        Skip.Unless(File.Exists(squeezeNetPath), "Model file not available - run scripts/download-test-models.ps1");
 
         // Run MobileNet
         var mobileNetOptions = new OnnxImageClassificationOptions

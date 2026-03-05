@@ -33,7 +33,7 @@ public class BatchIntegrationTests : IDisposable
     [Fact]
     public void ClassifyBatch_FixedModel_MatchesSingleResults()
     {
-        if (!File.Exists(SqueezeNetModelPath)) return;
+        Skip.Unless(File.Exists(SqueezeNetModelPath), "Model file not available - run scripts/download-test-models.ps1");
 
         var labels = File.ReadAllLines(SqueezeNetLabelsPath);
         var options = new OnnxImageClassificationOptions
@@ -72,7 +72,7 @@ public class BatchIntegrationTests : IDisposable
     [Fact]
     public void ClassifyBatch_DynamicModel_MatchesSingleResults()
     {
-        if (!File.Exists(MobileNetModelPath)) return;
+        Skip.Unless(File.Exists(MobileNetModelPath), "Model file not available - run scripts/download-test-models.ps1");
 
         var options = new OnnxImageClassificationOptions
         {
@@ -107,7 +107,7 @@ public class BatchIntegrationTests : IDisposable
     [Fact]
     public void ClassifyBatch_SingleImage_MatchesSingle()
     {
-        if (!File.Exists(MobileNetModelPath)) return;
+        Skip.Unless(File.Exists(MobileNetModelPath), "Model file not available - run scripts/download-test-models.ps1");
 
         var options = new OnnxImageClassificationOptions
         {
@@ -133,7 +133,7 @@ public class BatchIntegrationTests : IDisposable
     [Fact]
     public void EmbeddingBatch_DynamicModel_MatchesSingleResults()
     {
-        if (!File.Exists(ClipVisionModelPath)) return;
+        Skip.Unless(File.Exists(ClipVisionModelPath), "Model file not available - run scripts/download-test-models.ps1");
 
         var options = new OnnxImageEmbeddingOptions
         {
@@ -168,7 +168,7 @@ public class BatchIntegrationTests : IDisposable
     [Fact]
     public void EmbeddingBatch_SingleImage_MatchesSingle()
     {
-        if (!File.Exists(ClipVisionModelPath)) return;
+        Skip.Unless(File.Exists(ClipVisionModelPath), "Model file not available - run scripts/download-test-models.ps1");
 
         var options = new OnnxImageEmbeddingOptions
         {
@@ -195,7 +195,7 @@ public class BatchIntegrationTests : IDisposable
     [Fact]
     public void ClassifyBatch_EmptyInput_ReturnsEmpty()
     {
-        if (!File.Exists(SqueezeNetModelPath)) return;
+        Skip.Unless(File.Exists(SqueezeNetModelPath), "Model file not available - run scripts/download-test-models.ps1");
 
         var options = new OnnxImageClassificationOptions
         {
@@ -217,6 +217,10 @@ public class BatchIntegrationTests : IDisposable
     [Fact]
     public void IsBatchDynamic_CorrectForAllModels()
     {
+        Skip.Unless(
+            File.Exists(SqueezeNetModelPath) || File.Exists(MobileNetModelPath) || File.Exists(ClipVisionModelPath),
+            "Model file not available — run scripts/download-test-models.ps1");
+
         if (File.Exists(SqueezeNetModelPath))
         {
             var squeezeMeta = ModelMetadataDiscovery.Discover(SqueezeNetModelPath);

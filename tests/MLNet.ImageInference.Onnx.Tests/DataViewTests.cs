@@ -29,7 +29,7 @@ public class DataViewTests : IDisposable
     [Fact]
     public void Classification_Transform_SchemaHasOutputColumns()
     {
-        if (!ModelExists) return;
+        Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");
 
         var options = new OnnxImageClassificationOptions
         {
@@ -62,7 +62,7 @@ public class DataViewTests : IDisposable
     [Fact]
     public void Classification_Transform_CanShuffleIsFalse()
     {
-        if (!ModelExists) return;
+        Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");
 
         var options = new OnnxImageClassificationOptions
         {
@@ -83,7 +83,7 @@ public class DataViewTests : IDisposable
     [Fact]
     public void Classification_Transform_GetRowCountReturnsNull()
     {
-        if (!ModelExists) return;
+        Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");
 
         var options = new OnnxImageClassificationOptions
         {
@@ -104,7 +104,7 @@ public class DataViewTests : IDisposable
     [Fact]
     public void Classification_Transform_GetRowCursorSetReturnsSingleCursor()
     {
-        if (!ModelExists) return;
+        Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");
 
         var options = new OnnxImageClassificationOptions
         {
@@ -127,7 +127,7 @@ public class DataViewTests : IDisposable
     [Fact]
     public void Classification_Cursor_IteratesRows()
     {
-        if (!ModelExists) return;
+        Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");
 
         var labels = File.ReadAllLines(LabelsPath);
         var options = new OnnxImageClassificationOptions
@@ -174,7 +174,7 @@ public class DataViewTests : IDisposable
     [Fact]
     public void Classification_Cursor_SourceColumnsPassthrough()
     {
-        if (!ModelExists) return;
+        Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");
 
         var options = new OnnxImageClassificationOptions
         {
@@ -205,7 +205,7 @@ public class DataViewTests : IDisposable
     [Fact]
     public void Classification_GetOutputSchema_MatchesTransformSchema()
     {
-        if (!ModelExists) return;
+        Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");
 
         var options = new OnnxImageClassificationOptions
         {
@@ -233,7 +233,7 @@ public class DataViewTests : IDisposable
     [Fact]
     public void Classification_Cursor_PositionAdvances()
     {
-        if (!ModelExists) return;
+        Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");
 
         var options = new OnnxImageClassificationOptions
         {
@@ -266,7 +266,7 @@ public class DataViewTests : IDisposable
     [Fact]
     public void Classification_CustomColumnNames_ReflectedInSchema()
     {
-        if (!ModelExists) return;
+        Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");
 
         var options = new OnnxImageClassificationOptions
         {

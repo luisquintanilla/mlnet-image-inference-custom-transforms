@@ -30,7 +30,7 @@ public class SegmentationIntegrationTests : IDisposable
     [Fact]
     public void ModelMetadata_HasExpectedInput()
     {
-        if (!ModelExists) return;
+        Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");
 
         var meta = ModelMetadataDiscovery.Discover(ModelPath);
 
@@ -50,7 +50,7 @@ public class SegmentationIntegrationTests : IDisposable
     [Fact]
     public void Segment_ReturnsValidSegmentationMask()
     {
-        if (!ModelExists) return;
+        Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");
 
         var options = new OnnxImageSegmentationOptions
         {
@@ -85,7 +85,7 @@ public class SegmentationIntegrationTests : IDisposable
     [Fact]
     public void Segment_GetClassAt_ReturnsValidClassIds()
     {
-        if (!ModelExists) return;
+        Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");
 
         var options = new OnnxImageSegmentationOptions
         {
@@ -115,7 +115,7 @@ public class SegmentationIntegrationTests : IDisposable
     [Fact]
     public void Segment_WithoutResize_ReturnsModelNativeResolution()
     {
-        if (!ModelExists) return;
+        Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");
 
         var options = new OnnxImageSegmentationOptions
         {
@@ -139,7 +139,7 @@ public class SegmentationIntegrationTests : IDisposable
     [Fact]
     public void Transform_IDataView_ProducesOutputColumns()
     {
-        if (!ModelExists) return;
+        Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");
 
         var options = new OnnxImageSegmentationOptions
         {

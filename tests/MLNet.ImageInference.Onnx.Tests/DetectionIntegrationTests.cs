@@ -29,7 +29,7 @@ public class DetectionIntegrationTests : IDisposable
     [Fact]
     public void ModelMetadata_HasExpectedInputOutput()
     {
-        if (!ModelExists) return;
+        Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");
 
         var meta = ModelMetadataDiscovery.Discover(ModelPath);
 
@@ -56,7 +56,7 @@ public class DetectionIntegrationTests : IDisposable
     [Fact]
     public void Detect_WithSyntheticImage_ReturnsBoundingBoxArray()
     {
-        if (!ModelExists) return;
+        Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");
 
         var options = new OnnxObjectDetectionOptions
         {
@@ -91,7 +91,7 @@ public class DetectionIntegrationTests : IDisposable
     [Fact]
     public void Detect_LowConfidenceReturnsMoreBoxes()
     {
-        if (!ModelExists) return;
+        Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");
 
         using var image = CreateTestImage(640, 640);
 
@@ -126,7 +126,7 @@ public class DetectionIntegrationTests : IDisposable
     [Fact]
     public void Transform_IDataView_ProducesOutputColumns()
     {
-        if (!ModelExists) return;
+        Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");
 
         var options = new OnnxObjectDetectionOptions
         {

@@ -37,7 +37,7 @@ public class DINOv2IntegrationTests : IDisposable
     [Fact]
     public void ModelMetadata_HasExpectedInputOutput()
     {
-        if (!ModelExists) return;
+        Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");
 
         var meta = ModelMetadataDiscovery.Discover(ModelPath);
 
@@ -60,7 +60,7 @@ public class DINOv2IntegrationTests : IDisposable
     [Fact]
     public void GenerateEmbedding_Returns384DimVector()
     {
-        if (!ModelExists) return;
+        Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");
 
         var transformer = new OnnxImageEmbeddingTransformer(CreateOptions());
         _disposables.Add(transformer);
@@ -76,7 +76,7 @@ public class DINOv2IntegrationTests : IDisposable
     [Fact]
     public void Embedding_IsNormalized()
     {
-        if (!ModelExists) return;
+        Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");
 
         var transformer = new OnnxImageEmbeddingTransformer(CreateOptions());
         _disposables.Add(transformer);
@@ -93,7 +93,7 @@ public class DINOv2IntegrationTests : IDisposable
     [Fact]
     public void DifferentImages_ProduceDifferentEmbeddings()
     {
-        if (!ModelExists) return;
+        Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");
 
         var transformer = new OnnxImageEmbeddingTransformer(CreateOptions());
         _disposables.Add(transformer);
@@ -116,7 +116,7 @@ public class DINOv2IntegrationTests : IDisposable
     [Fact]
     public async Task MEAIGenerator_Works()
     {
-        if (!ModelExists) return;
+        Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");
 
         var transformer = new OnnxImageEmbeddingTransformer(CreateOptions());
         _disposables.Add(transformer);
@@ -140,7 +140,7 @@ public class DINOv2IntegrationTests : IDisposable
     [Fact]
     public void Transform_IDataView_ProducesEmbeddingColumn()
     {
-        if (!ModelExists) return;
+        Skip.Unless(ModelExists, "Model file not available - run scripts/download-test-models.ps1");
 
         var transformer = new OnnxImageEmbeddingTransformer(CreateOptions());
         _disposables.Add(transformer);
