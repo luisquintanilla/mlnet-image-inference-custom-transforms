@@ -10,7 +10,7 @@ Custom ML.NET transforms for image inference and generation backed by local ONNX
 |---|---|---|
 | **MLNet.Image.Core** | Image preprocessing, `MLImage↔DataContent` conversion, result types (`BoundingBox`, `SegmentationMask`, `DepthMap`) | ✅ |
 | **MLNet.Image.Tokenizers** | CLIP tokenizer extending `Microsoft.ML.Tokenizers` | ✅ |
-| **MLNet.ImageInference.Onnx** | ML.NET transforms: classification, detection, segmentation, embeddings, zero-shot, depth estimation, image captioning | ✅ |
+| **MLNet.ImageInference.Onnx** | ML.NET transforms: classification, detection, segmentation, embeddings, zero-shot, depth estimation, captioning, SAM2 | ✅ |
 | **MLNet.ImageGeneration.OnnxGenAI** | Text-to-image generation (Stable Diffusion via OnnxRuntime) | ✅ |
 
 ## Quick Start
@@ -122,6 +122,32 @@ Console.WriteLine(response.Text); // "a blue sky with no clouds"
 // Swap chatClient with OpenAI/Azure without changing any code above
 ```
 
+### Segment Anything (SAM2)
+
+```csharp
+using MLNet.Image.Core;
+using MLNet.ImageInference.Onnx.SegmentAnything;
+
+var options = new OnnxSegmentAnythingOptions
+{
+    EncoderModelPath = "models/sam2-tiny/sam2_hiera_tiny_encoder.onnx",
+    DecoderModelPath = "models/sam2-tiny/sam2_hiera_tiny_decoder.onnx",
+    PreprocessorConfig = PreprocessorConfig.SAM2
+};
+
+using var transformer = new OnnxSegmentAnythingTransformer(options);
+using var image = MLImage.CreateFromFile("photo.jpg");
+
+// Point prompt — segment object at (x, y)
+var result = transformer.Segment(image, SegmentAnythingPrompt.FromPoint(256f, 256f));
+Console.WriteLine($"Mask: {result.Width}x{result.Height}, IoU: {result.GetBestIoU():F4}");
+
+// Encode once, segment many — reuse embeddings for different prompts
+var embedding = transformer.EncodeImage(image);
+var mask1 = transformer.Segment(embedding, SegmentAnythingPrompt.FromPoint(100f, 100f));
+var mask2 = transformer.Segment(embedding, SegmentAnythingPrompt.FromBoundingBox(50f, 50f, 200f, 200f));
+```
+
 ## Supported Tasks
 
 | Task | Status | Package | MEAI Interface |
@@ -133,6 +159,7 @@ Console.WriteLine(response.Text); // "a blue sky with no clouds"
 | Zero-Shot Classification | ✅ | `MLNet.ImageInference.Onnx` | — |
 | Depth Estimation | ✅ | `MLNet.ImageInference.Onnx` | — |
 | Image Captioning | ✅ | `MLNet.ImageInference.Onnx` | `IChatClient` |
+| Segment Anything (SAM2) | ✅ | `MLNet.ImageInference.Onnx` | — |
 | Text-to-Image Generation | ✅ | `MLNet.ImageGeneration.OnnxGenAI` | — |
 
 ## Samples
@@ -146,6 +173,7 @@ Console.WriteLine(response.Text); // "a blue sky with no clouds"
 | Zero-Shot Classification | CLIP vision+text zero-shot classification | [`samples/ZeroShotClassification/`](samples/ZeroShotClassification/) |
 | Depth Estimation | MiDaS/DPT monocular depth estimation | [`samples/DepthEstimation/`](samples/DepthEstimation/) |
 | Image Captioning | GIT image-to-text captioning | [`samples/ImageCaptioning/`](samples/ImageCaptioning/) |
+| Segment Anything | SAM2 prompt-based segmentation (point, box, multi-point) | [`samples/SegmentAnything/`](samples/SegmentAnything/) |
 | Text-to-Image | Stable Diffusion generation with direct + MEAI APIs | [`samples/TextToImage/`](samples/TextToImage/) |
 
 ## Architecture Overview
@@ -164,7 +192,7 @@ MLImage → ① Preprocess → ② ONNX Score → ③ PostProcess → Result
 
 Each task transformer composes the shared preprocessing and scoring sub-transforms with task-specific post-processing. Shared base classes (`OnnxImageCursorBase`, `OnnxImageDataViewBase`, `OnnxImageEstimatorBase`) eliminate duplication across all tasks.
 
-**Multi-model tasks** (Zero-Shot, Image Captioning) manage separate `OnnxSessionPool` instances — e.g., captioning uses a vision encoder + text decoder with autoregressive greedy token generation.
+**Multi-model tasks** (Zero-Shot, Image Captioning, SAM2) manage separate `OnnxSessionPool` instances — e.g., captioning uses a vision encoder + text decoder with autoregressive greedy token generation, and SAM2 uses an image encoder + prompt decoder for interactive segmentation.
 
 ### Batch Inference
 
@@ -218,17 +246,17 @@ dotnet build MLNet.Image.slnx
 
 ## Testing
 
-**172 tests** across three test projects — all passing.
+**181 tests** across three test projects — all passing.
 
 | Test Project | Tests | Description |
 |---|---|---|
 | Core | 45 | Image preprocessing, conversions, result types |
 | Tokenizers | 14 | CLIP tokenizer encoding/decoding |
-| Inference | 113 | End-to-end ONNX inference across 10+ models, all tasks, IChatClient (incl. batch) |
+| Inference | 122 | End-to-end ONNX inference across 12+ models, all tasks, IChatClient, SAM2 (incl. batch) |
 
 ### Tested Models
 
-All supported tasks are validated against real ONNX models across all preprocessor presets (ImageNet, CLIP, DINOv2, YOLOv8, SegFormer, MiDaS, DPT, GIT):
+All supported tasks are validated against real ONNX models across all preprocessor presets (ImageNet, CLIP, DINOv2, YOLOv8, SegFormer, MiDaS, DPT, GIT, SAM2):
 
 | Model | Task | Notes |
 |---|---|---|
@@ -242,6 +270,8 @@ All supported tasks are validated against real ONNX models across all preprocess
 | DeepLabV3-ResNet50 | Segmentation | 21 Pascal VOC classes, 520×520 |
 | DPT-Hybrid (MiDaS) | Depth Estimation | Monocular depth, 384×384, ImageNet normalization |
 | GIT-base-COCO | Image Captioning | Autoregressive captioning, BERT WordPiece tokenizer |
+| SAM2 Hiera-Tiny | Segment Anything | Prompt-based segmentation (point/box), encode-once decode-many |
+| Stable Diffusion v1.4 | Text-to-Image | 3-stage pipeline: CLIP text encoder → UNet → VAE decoder |
 
 ## Related Projects
 
