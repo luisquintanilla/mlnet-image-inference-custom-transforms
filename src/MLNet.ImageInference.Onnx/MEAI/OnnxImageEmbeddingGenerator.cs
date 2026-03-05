@@ -8,7 +8,7 @@ namespace MLNet.ImageInference.Onnx.MEAI;
 /// Bridges the ML.NET image embedding transformer to the Microsoft.Extensions.AI abstraction.
 /// Uses MLImage directly as TInput — the ML.NET image primitive.
 /// </summary>
-public sealed class OnnxImageEmbeddingGenerator : IEmbeddingGenerator<MLImage, Embedding<float>>
+public sealed class OnnxImageEmbeddingGenerator : IEmbeddingGenerator<MLImage, Embedding<float>>, IDisposable
 {
     private readonly Embeddings.OnnxImageEmbeddingTransformer _transformer;
 
@@ -41,7 +41,7 @@ public sealed class OnnxImageEmbeddingGenerator : IEmbeddingGenerator<MLImage, E
         CancellationToken cancellationToken = default)
     {
         var imageList = values as IReadOnlyList<MLImage> ?? values.ToList();
-        var batchResults = _transformer.GenerateEmbeddingBatch(imageList);
+        var batchResults = _transformer.GenerateEmbeddingBatch(imageList, cancellationToken);
 
         var embeddings = new GeneratedEmbeddings<Embedding<float>>();
         foreach (var embedding in batchResults)

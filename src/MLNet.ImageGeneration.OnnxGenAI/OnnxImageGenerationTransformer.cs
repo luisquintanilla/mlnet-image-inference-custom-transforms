@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using Microsoft.Extensions.Logging;
 using Microsoft.ML.Data;
 using Microsoft.ML.OnnxRuntime;
 using Microsoft.ML.OnnxRuntime.Tensors;
@@ -18,17 +20,24 @@ public sealed class OnnxImageGenerationTransformer : IDisposable
     private readonly InferenceSession _vaeDecoder;
     private readonly EulerDiscreteScheduler _scheduler;
     private readonly ClipTokenizer? _tokenizer;
+    private readonly ILogger _logger;
     private bool _disposed;
 
     public OnnxImageGenerationTransformer(OnnxImageGenerationOptions options)
     {
         _options = options ?? throw new ArgumentNullException(nameof(options));
+        _logger = (ILogger?)options.Logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance;
 
-        var sessionOptions = new SessionOptions();
+        var sw = Stopwatch.StartNew();
+        var sessionOptions = CreateSessionOptions(options);
 
         var textEncoderPath = Path.Combine(options.ModelDirectory, "text_encoder", "model.onnx");
         var unetPath = Path.Combine(options.ModelDirectory, "unet", "model.onnx");
         var vaeDecoderPath = Path.Combine(options.ModelDirectory, "vae_decoder", "model.onnx");
+
+        ValidateModelFile(textEncoderPath, "text_encoder");
+        ValidateModelFile(unetPath, "unet");
+        ValidateModelFile(vaeDecoderPath, "vae_decoder");
 
         _textEncoder = new InferenceSession(textEncoderPath, sessionOptions);
         _unet = new InferenceSession(unetPath, sessionOptions);
@@ -37,6 +46,49 @@ public sealed class OnnxImageGenerationTransformer : IDisposable
 
         if (options.VocabPath is not null && options.MergesPath is not null)
             _tokenizer = ClipTokenizer.Create(options.VocabPath, options.MergesPath);
+
+        _logger.LogInformation("Stable Diffusion models loaded from {ModelDirectory} in {ElapsedMs}ms",
+            options.ModelDirectory, sw.ElapsedMilliseconds);
+    }
+
+    private static SessionOptions CreateSessionOptions(OnnxImageGenerationOptions options)
+    {
+        var sessionOptions = new SessionOptions();
+
+        if (options.ExecutionProvider == OnnxExecutionProvider.CPU)
+            return sessionOptions;
+
+        try
+        {
+            switch (options.ExecutionProvider)
+            {
+                case OnnxExecutionProvider.CUDA:
+                    sessionOptions.AppendExecutionProvider_CUDA(options.GpuDeviceId);
+                    break;
+                case OnnxExecutionProvider.DirectML:
+                    sessionOptions.AppendExecutionProvider_DML(options.GpuDeviceId);
+                    break;
+                case OnnxExecutionProvider.TensorRT:
+                    sessionOptions.AppendExecutionProvider_Tensorrt(options.GpuDeviceId);
+                    break;
+            }
+        }
+        catch (OnnxRuntimeException ex) when (options.FallbackToCpu)
+        {
+            options.Logger?.LogWarning(ex, "{Provider} initialization failed, falling back to CPU", options.ExecutionProvider);
+            sessionOptions = new SessionOptions();
+        }
+
+        return sessionOptions;
+    }
+
+    private static void ValidateModelFile(string path, string componentName)
+    {
+        if (!File.Exists(path))
+            throw new FileNotFoundException(
+                $"Stable Diffusion {componentName} model not found: '{path}'. " +
+                "Ensure the model has been exported and the ModelDirectory is correct.",
+                path);
     }
 
     /// <summary>
@@ -45,8 +97,12 @@ public sealed class OnnxImageGenerationTransformer : IDisposable
     /// <param name="prompt">The text prompt describing the desired image.</param>
     /// <param name="seed">Optional random seed for reproducibility.</param>
     /// <returns>Generated image as an MLImage.</returns>
-    public MLImage Generate(string prompt, int? seed = null)
+    public MLImage Generate(string prompt, int? seed = null, CancellationToken cancellationToken = default)
     {
+        var sw = Stopwatch.StartNew();
+        _logger.LogInformation("Generating {Width}x{Height} image with {Steps} steps, prompt: \"{Prompt}\"",
+            _options.Width, _options.Height, _options.NumInferenceSteps, prompt);
+
         int height = _options.Height;
         int width = _options.Width;
         int steps = _options.NumInferenceSteps;
@@ -84,6 +140,7 @@ public sealed class OnnxImageGenerationTransformer : IDisposable
         // 5. Denoise loop
         for (int step = 0; step < steps; step++)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var scaledLatents = _scheduler.ScaleModelInput(latents, step);
 
             // Duplicate for CFG: [2, 4, H/8, W/8]
@@ -104,6 +161,7 @@ public sealed class OnnxImageGenerationTransformer : IDisposable
             }
 
             latents = _scheduler.Step(guidedNoise, step, latents);
+            _logger.LogDebug("Denoising step {Step}/{TotalSteps} complete", step + 1, steps);
         }
 
         // 6. Scale latents for VAE (1/0.18215 scaling factor)
@@ -114,7 +172,9 @@ public sealed class OnnxImageGenerationTransformer : IDisposable
         var imageData = VaeDecode(latents, latentH, latentW);
 
         // 8. Convert to MLImage
-        return ConvertToMLImage(imageData, height, width);
+        var result = ConvertToMLImage(imageData, height, width);
+        _logger.LogInformation("Image generation completed in {ElapsedMs}ms", sw.ElapsedMilliseconds);
+        return result;
     }
 
     /// <summary>

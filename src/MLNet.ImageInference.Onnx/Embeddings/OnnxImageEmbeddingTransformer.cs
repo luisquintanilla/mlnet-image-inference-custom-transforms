@@ -56,12 +56,13 @@ public sealed class OnnxImageEmbeddingTransformer : ITransformer, IDisposable
     /// <summary>
     /// Generate embeddings for a list of images.
     /// </summary>
-    public float[][] GenerateEmbeddings(IReadOnlyList<MLImage> images)
+    public float[][] GenerateEmbeddings(IReadOnlyList<MLImage> images, CancellationToken cancellationToken = default)
     {
         var results = new float[images.Count][];
         for (int i = 0; i < images.Count; i++)
         {
-            results[i] = GenerateEmbedding(images[i]);
+            cancellationToken.ThrowIfCancellationRequested();
+            results[i] = GenerateEmbedding(images[i], cancellationToken);
         }
         return results;
     }
@@ -69,7 +70,7 @@ public sealed class OnnxImageEmbeddingTransformer : ITransformer, IDisposable
     /// <summary>
     /// Generates embeddings for a batch of images. Uses true tensor batching if the model supports it.
     /// </summary>
-    public float[][] GenerateEmbeddingBatch(IReadOnlyList<MLImage> images)
+    public float[][] GenerateEmbeddingBatch(IReadOnlyList<MLImage> images, CancellationToken cancellationToken = default)
     {
         if (images == null || images.Count == 0)
             return Array.Empty<float[]>();
@@ -83,7 +84,8 @@ public sealed class OnnxImageEmbeddingTransformer : ITransformer, IDisposable
             var results = new float[images.Count][];
             for (int i = 0; i < images.Count; i++)
             {
-                results[i] = GenerateEmbedding(images[i]);
+                cancellationToken.ThrowIfCancellationRequested();
+                results[i] = GenerateEmbedding(images[i], cancellationToken);
             }
             return results;
         }
@@ -92,8 +94,10 @@ public sealed class OnnxImageEmbeddingTransformer : ITransformer, IDisposable
     /// <summary>
     /// Generate an embedding for a single image.
     /// </summary>
-    public float[] GenerateEmbedding(MLImage image)
+    public float[] GenerateEmbedding(MLImage image, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         // Stage 1: Preprocess
         var tensor = _preprocessor.Preprocess(image);
 

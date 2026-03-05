@@ -25,7 +25,7 @@ public sealed class OnnxImageGenerator : IDisposable
         int? seed = null,
         CancellationToken cancellationToken = default)
     {
-        return await Task.Run(() => _transformer.Generate(prompt, seed), cancellationToken);
+        return await Task.Run(() => _transformer.Generate(prompt, seed, cancellationToken), cancellationToken);
     }
 
     public void Dispose()

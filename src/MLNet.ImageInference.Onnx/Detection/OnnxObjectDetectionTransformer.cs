@@ -47,8 +47,10 @@ public sealed class OnnxObjectDetectionTransformer : ITransformer, IDisposable
     /// <summary>
     /// Detect objects in a single image and return bounding boxes.
     /// </summary>
-    public BoundingBox[] Detect(MLImage image)
+    public BoundingBox[] Detect(MLImage image, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         // Stage 1: Preprocess
         var tensor = _preprocessor.Preprocess(image);
 
@@ -63,7 +65,7 @@ public sealed class OnnxObjectDetectionTransformer : ITransformer, IDisposable
     /// Detects objects in a batch of images. Uses true tensor batching if the model supports dynamic batch,
     /// otherwise loops individual inference calls.
     /// </summary>
-    public BoundingBox[][] DetectBatch(IReadOnlyList<MLImage> images)
+    public BoundingBox[][] DetectBatch(IReadOnlyList<MLImage> images, CancellationToken cancellationToken = default)
     {
         if (images == null || images.Count == 0)
             return Array.Empty<BoundingBox[]>();
@@ -76,7 +78,10 @@ public sealed class OnnxObjectDetectionTransformer : ITransformer, IDisposable
         {
             var results = new BoundingBox[images.Count][];
             for (int i = 0; i < images.Count; i++)
-                results[i] = Detect(images[i]);
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                results[i] = Detect(images[i], cancellationToken);
+            }
             return results;
         }
     }

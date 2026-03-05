@@ -50,8 +50,10 @@ public sealed class OnnxImageClassificationTransformer : ITransformer, IDisposab
     /// <summary>
     /// Classify a single image and return top predictions.
     /// </summary>
-    public (string Label, float Probability)[] Classify(MLImage image)
+    public (string Label, float Probability)[] Classify(MLImage image, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         // Stage 1: Preprocess
         var tensor = _preprocessor.Preprocess(image);
 
@@ -66,7 +68,7 @@ public sealed class OnnxImageClassificationTransformer : ITransformer, IDisposab
     /// Classifies a batch of images. Uses true tensor batching if the model supports dynamic batch,
     /// otherwise loops individual inference calls.
     /// </summary>
-    public (string Label, float Probability)[][] ClassifyBatch(IReadOnlyList<MLImage> images)
+    public (string Label, float Probability)[][] ClassifyBatch(IReadOnlyList<MLImage> images, CancellationToken cancellationToken = default)
     {
         if (images == null || images.Count == 0)
             return Array.Empty<(string, float)[]>();
@@ -79,7 +81,10 @@ public sealed class OnnxImageClassificationTransformer : ITransformer, IDisposab
         {
             var results = new (string Label, float Probability)[images.Count][];
             for (int i = 0; i < images.Count; i++)
-                results[i] = Classify(images[i]);
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                results[i] = Classify(images[i], cancellationToken);
+            }
             return results;
         }
     }

@@ -47,8 +47,10 @@ public sealed class OnnxImageDepthEstimationTransformer : ITransformer, IDisposa
     /// <summary>
     /// Estimate depth for a single image.
     /// </summary>
-    public DepthMap Estimate(MLImage image)
+    public DepthMap Estimate(MLImage image, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         var tensor = _preprocessor.Preprocess(image);
         var (output, dims) = _scorer.ScoreWithDimensions(tensor);
 
@@ -74,7 +76,7 @@ public sealed class OnnxImageDepthEstimationTransformer : ITransformer, IDisposa
     /// <summary>
     /// Estimate depth for a batch of images.
     /// </summary>
-    public DepthMap[] EstimateBatch(IReadOnlyList<MLImage> images)
+    public DepthMap[] EstimateBatch(IReadOnlyList<MLImage> images, CancellationToken cancellationToken = default)
     {
         if (images == null || images.Count == 0)
             return Array.Empty<DepthMap>();
@@ -87,7 +89,10 @@ public sealed class OnnxImageDepthEstimationTransformer : ITransformer, IDisposa
         {
             var results = new DepthMap[images.Count];
             for (int i = 0; i < images.Count; i++)
-                results[i] = Estimate(images[i]);
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                results[i] = Estimate(images[i], cancellationToken);
+            }
             return results;
         }
     }

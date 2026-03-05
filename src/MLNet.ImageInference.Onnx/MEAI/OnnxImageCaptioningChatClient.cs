@@ -80,8 +80,8 @@ public sealed class OnnxImageCaptioningChatClient : IChatClient
         try
         {
             string result = question is not null
-                ? _transformer.AnswerQuestion(image, question)
-                : _transformer.GenerateCaption(image);
+                ? _transformer.AnswerQuestion(image, question, cancellationToken)
+                : _transformer.GenerateCaption(image, cancellationToken);
 
             return Task.FromResult(new ChatResponse(
                 new ChatMessage(ChatRole.Assistant, result)));

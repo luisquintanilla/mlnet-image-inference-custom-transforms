@@ -47,8 +47,10 @@ public sealed class OnnxImageSegmentationTransformer : ITransformer, IDisposable
     /// <summary>
     /// Segment a single image and return the segmentation mask.
     /// </summary>
-    public SegmentationMask Segment(MLImage image)
+    public SegmentationMask Segment(MLImage image, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         // Stage 1: Preprocess
         var tensor = _preprocessor.Preprocess(image);
 
@@ -71,7 +73,7 @@ public sealed class OnnxImageSegmentationTransformer : ITransformer, IDisposable
     /// Segments a batch of images. Uses true tensor batching if the model supports dynamic batch,
     /// otherwise loops individual inference calls.
     /// </summary>
-    public SegmentationMask[] SegmentBatch(IReadOnlyList<MLImage> images)
+    public SegmentationMask[] SegmentBatch(IReadOnlyList<MLImage> images, CancellationToken cancellationToken = default)
     {
         if (images == null || images.Count == 0)
             return Array.Empty<SegmentationMask>();
@@ -84,7 +86,10 @@ public sealed class OnnxImageSegmentationTransformer : ITransformer, IDisposable
         {
             var results = new SegmentationMask[images.Count];
             for (int i = 0; i < images.Count; i++)
-                results[i] = Segment(images[i]);
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                results[i] = Segment(images[i], cancellationToken);
+            }
             return results;
         }
     }

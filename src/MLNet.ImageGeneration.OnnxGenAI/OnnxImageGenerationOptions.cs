@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using MLNet.Image.Core;
 
 namespace MLNet.ImageGeneration.OnnxGenAI;
@@ -39,4 +40,25 @@ public class OnnxImageGenerationOptions
     /// Required when VocabPath is set.
     /// </summary>
     public string? MergesPath { get; init; }
+
+    /// <summary>
+    /// Execution provider for hardware acceleration. Default: CPU.
+    /// CUDA dramatically speeds up Stable Diffusion inference (minutes → seconds).
+    /// </summary>
+    public OnnxExecutionProvider ExecutionProvider { get; init; } = OnnxExecutionProvider.CPU;
+
+    /// <summary>GPU device ID for CUDA/DirectML/TensorRT. Default: 0.</summary>
+    public int GpuDeviceId { get; init; } = 0;
+
+    /// <summary>
+    /// If true, silently falls back to CPU when the requested GPU execution provider fails.
+    /// Default: true.
+    /// </summary>
+    public bool FallbackToCpu { get; init; } = true;
+
+    /// <summary>
+    /// Optional logger for diagnostics (model load timing, denoising steps, GPU fallback).
+    /// When null, no logging is performed.
+    /// </summary>
+    public ILogger? Logger { get; init; }
 }

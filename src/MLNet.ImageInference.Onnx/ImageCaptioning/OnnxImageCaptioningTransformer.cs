@@ -58,7 +58,7 @@ public sealed class OnnxImageCaptioningTransformer : ITransformer, IDisposable
     /// <summary>
     /// Generate a caption for a single image.
     /// </summary>
-    public string GenerateCaption(MLImage image)
+    public string GenerateCaption(MLImage image, CancellationToken cancellationToken = default)
     {
         // Stage 1: Preprocess image
         var tensor = _preprocessor.Preprocess(image);
@@ -67,7 +67,7 @@ public sealed class OnnxImageCaptioningTransformer : ITransformer, IDisposable
         var visualFeatures = EncodeImage(tensor);
 
         // Stage 3: Autoregressive text generation
-        var tokenIds = GenerateTokens(visualFeatures, initialIds: [_options.BosTokenId]);
+        var tokenIds = GenerateTokens(visualFeatures, initialIds: [_options.BosTokenId], cancellationToken);
 
         // Stage 4: Decode tokens to text
         return _tokenizer.Decode(tokenIds);
@@ -78,7 +78,7 @@ public sealed class OnnxImageCaptioningTransformer : ITransformer, IDisposable
     /// The question is tokenized and used as initial decoder input before autoregressive generation.
     /// Requires a GIT-VQA model (e.g., microsoft/git-base-textvqa).
     /// </summary>
-    public string AnswerQuestion(MLImage image, string question)
+    public string AnswerQuestion(MLImage image, string question, CancellationToken cancellationToken = default)
     {
         // Stage 1: Preprocess image
         var tensor = _preprocessor.Preprocess(image);
@@ -90,7 +90,7 @@ public sealed class OnnxImageCaptioningTransformer : ITransformer, IDisposable
         var questionTokenIds = TokenizeQuestion(question);
 
         // Stage 4: Autoregressive generation starting after the question
-        var answerTokenIds = GenerateTokens(visualFeatures, initialIds: questionTokenIds);
+        var answerTokenIds = GenerateTokens(visualFeatures, initialIds: questionTokenIds, cancellationToken);
 
         // Stage 5: Decode answer tokens to text
         return _tokenizer.Decode(answerTokenIds);
@@ -99,16 +99,17 @@ public sealed class OnnxImageCaptioningTransformer : ITransformer, IDisposable
     /// <summary>
     /// Generate captions for a batch of images.
     /// </summary>
-    public string[] GenerateCaptionBatch(IReadOnlyList<MLImage> images)
+    public string[] GenerateCaptionBatch(IReadOnlyList<MLImage> images, CancellationToken cancellationToken = default)
     {
         if (images == null || images.Count == 0)
             return [];
 
-        // Captioning is inherently sequential per image (autoregressive decoding),
-        // so we process each image individually even if the encoder supports batching.
         var captions = new string[images.Count];
         for (int i = 0; i < images.Count; i++)
-            captions[i] = GenerateCaption(images[i]);
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            captions[i] = GenerateCaption(images[i], cancellationToken);
+        }
         return captions;
     }
 
@@ -142,12 +143,13 @@ public sealed class OnnxImageCaptioningTransformer : ITransformer, IDisposable
     /// </summary>
     /// <param name="visualFeatures">Encoded visual features from the image.</param>
     /// <param name="initialIds">Initial token IDs (e.g., [CLS] for captioning, or [CLS]+question+[SEP] for VQA).</param>
-    private List<int> GenerateTokens(DenseTensor<float> visualFeatures, int[] initialIds)
+    private List<int> GenerateTokens(DenseTensor<float> visualFeatures, int[] initialIds, CancellationToken cancellationToken)
     {
         var generatedIds = new List<int>();
 
         for (int step = 0; step < _options.MaxLength; step++)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             // Build input_ids tensor: [1, initial_len + generated_len]
             int seqLen = initialIds.Length + generatedIds.Count;
             var inputIdsTensor = new DenseTensor<long>([1, seqLen]);

@@ -35,8 +35,9 @@ public sealed class OnnxSegmentAnythingTransformer : ITransformer, IDisposable
     /// <summary>
     /// Encode an image to produce image embeddings that can be reused with multiple prompts.
     /// </summary>
-    public SegmentAnythingImageEmbedding EncodeImage(MLImage image)
+    public SegmentAnythingImageEmbedding EncodeImage(MLImage image, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         ObjectDisposedException.ThrowIf(_disposed, this);
 
         int originalWidth = image.Width;
@@ -66,8 +67,9 @@ public sealed class OnnxSegmentAnythingTransformer : ITransformer, IDisposable
     /// <summary>
     /// Segment an image with a prompt using cached image embeddings.
     /// </summary>
-    public SegmentAnythingResult Segment(SegmentAnythingImageEmbedding embedding, SegmentAnythingPrompt prompt)
+    public SegmentAnythingResult Segment(SegmentAnythingImageEmbedding embedding, SegmentAnythingPrompt prompt, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         ObjectDisposedException.ThrowIf(_disposed, this);
 
         int numPoints = prompt.NumPoints;
@@ -139,20 +141,22 @@ public sealed class OnnxSegmentAnythingTransformer : ITransformer, IDisposable
     /// <summary>
     /// Convenience method: encode image and segment with a single prompt in one call.
     /// </summary>
-    public SegmentAnythingResult Segment(MLImage image, SegmentAnythingPrompt prompt)
+    public SegmentAnythingResult Segment(MLImage image, SegmentAnythingPrompt prompt, CancellationToken cancellationToken = default)
     {
-        var embedding = EncodeImage(image);
-        return Segment(embedding, prompt);
+        cancellationToken.ThrowIfCancellationRequested();
+        var embedding = EncodeImage(image, cancellationToken);
+        return Segment(embedding, prompt, cancellationToken);
     }
 
     /// <summary>
     /// Segment using the center point of the image as a foreground prompt.
     /// Useful for automatic single-object segmentation.
     /// </summary>
-    public SegmentAnythingResult SegmentCenter(MLImage image)
+    public SegmentAnythingResult SegmentCenter(MLImage image, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         var prompt = SegmentAnythingPrompt.FromPoint(image.Width / 2f, image.Height / 2f);
-        return Segment(image, prompt);
+        return Segment(image, prompt, cancellationToken);
     }
 
     private static DenseTensor<float> CopyTensor(Tensor<float> source, int[] dims)
