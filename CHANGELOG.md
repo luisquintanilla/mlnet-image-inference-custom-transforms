@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [v0.4.0-preview.1] - Unreleased
+## [v0.4.0-preview.1] - 2026-03-05
 
 ### Added
 - **GPU/ExecutionProvider support** — `OnnxExecutionProvider` enum (CPU, CUDA, DirectML, TensorRT) on all options
@@ -20,7 +20,7 @@ All notable changes to this project will be documented in this file.
 - All batch methods check `CancellationToken` between items
 - SD denoising loop and captioning decode loop check cancellation per step
 
-## [v0.3.0-preview.1] - Unreleased
+## [v0.3.0-preview.1] - 2026-03-05
 
 ### Added
 - **Visual Question Answering (VQA)** — `AnswerQuestion(image, question)` on `OnnxImageCaptioningTransformer` using GIT-VQA model (`microsoft/git-base-textvqa`)
@@ -39,7 +39,7 @@ All notable changes to this project will be documented in this file.
 ### Models
 - GIT-base-TextVQA (encoder 332 MB + decoder 344 MB)
 
-## [v0.2.0-preview.1] - 2025-06-XX
+## [v0.2.0-preview.1] - 2026-03-05
 
 ### Added
 - **SAM2 (Segment Anything Model v2)** — prompt-based segmentation with point, bounding box, and multi-point prompts
@@ -57,7 +57,7 @@ All notable changes to this project will be documented in this file.
 - DPT-Hybrid MiDaS (508 MB)
 - Stable Diffusion v1.4 (4.4 GB, exported via torch.onnx.export)
 
-## [v0.1.0-preview.1] - 2025-06-XX
+## [v0.1.0-preview.1] - 2026-03-05
 
 ### Added
 - **Image Classification** — SqueezeNet, MobileNetV2, ResNet-50 with softmax + top-K

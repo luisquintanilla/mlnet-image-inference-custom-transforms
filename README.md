@@ -280,13 +280,13 @@ dotnet build MLNet.Image.slnx
 
 ## Testing
 
-**190 tests** across three test projects — all passing.
+**198 tests** across three test projects — all passing.
 
 | Test Project | Tests | Description |
 |---|---|---|
 | Core | 45 | Image preprocessing, conversions, result types |
 | Tokenizers | 14 | CLIP tokenizer encoding/decoding |
-| Inference | 131 | End-to-end ONNX inference across 13+ models, all tasks, IChatClient, VQA, SAM2, SD tokenizer (incl. batch) |
+| Inference | 139 | End-to-end ONNX inference across 13+ models, all tasks, IChatClient, VQA, SAM2, SD tokenizer, GPU fallback, CancellationToken (incl. batch) |
 
 ### Tested Models
 
