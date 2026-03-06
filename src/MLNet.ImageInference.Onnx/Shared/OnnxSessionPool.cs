@@ -50,9 +50,10 @@ public sealed class OnnxSessionPool : IDisposable
         if (options.ExecutionProvider == OnnxExecutionProvider.CPU)
             return null;
 
-        var sessionOptions = new SessionOptions();
+        SessionOptions? sessionOptions = null;
         try
         {
+            sessionOptions = new SessionOptions();
             switch (options.ExecutionProvider)
             {
                 case OnnxExecutionProvider.CUDA:
@@ -69,10 +70,11 @@ public sealed class OnnxSessionPool : IDisposable
                 options.ExecutionProvider, options.GpuDeviceId);
             return sessionOptions;
         }
-        catch (Exception ex) when (options.FallbackToCpu && ex is OnnxRuntimeException or EntryPointNotFoundException)
+        catch (Exception ex) when (options.FallbackToCpu &&
+            ex is OnnxRuntimeException or EntryPointNotFoundException or DllNotFoundException or TypeInitializationException)
         {
             options.Logger?.LogWarning(ex, "{Provider} initialization failed, falling back to CPU", options.ExecutionProvider);
-            sessionOptions.Dispose();
+            sessionOptions?.Dispose();
             return null; // Fall back to CPU
         }
     }

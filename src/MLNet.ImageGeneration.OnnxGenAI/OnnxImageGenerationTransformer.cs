@@ -53,13 +53,12 @@ public sealed class OnnxImageGenerationTransformer : IDisposable
 
     private static SessionOptions CreateSessionOptions(OnnxImageGenerationOptions options)
     {
-        var sessionOptions = new SessionOptions();
-
         if (options.ExecutionProvider == OnnxExecutionProvider.CPU)
-            return sessionOptions;
+            return new SessionOptions();
 
         try
         {
+            var sessionOptions = new SessionOptions();
             switch (options.ExecutionProvider)
             {
                 case OnnxExecutionProvider.CUDA:
@@ -72,14 +71,14 @@ public sealed class OnnxImageGenerationTransformer : IDisposable
                     sessionOptions.AppendExecutionProvider_Tensorrt(options.GpuDeviceId);
                     break;
             }
+            return sessionOptions;
         }
-        catch (Exception ex) when (options.FallbackToCpu && ex is OnnxRuntimeException or EntryPointNotFoundException)
+        catch (Exception ex) when (options.FallbackToCpu &&
+            ex is OnnxRuntimeException or EntryPointNotFoundException or DllNotFoundException or TypeInitializationException)
         {
             options.Logger?.LogWarning(ex, "{Provider} initialization failed, falling back to CPU", options.ExecutionProvider);
-            sessionOptions = new SessionOptions();
+            return new SessionOptions();
         }
-
-        return sessionOptions;
     }
 
     private static void ValidateModelFile(string path, string componentName)
